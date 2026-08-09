@@ -1,19 +1,61 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Menu, X, ShieldCheck } from "lucide-react";
 
 const Navbar = () => {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  const pathname = usePathname();
+
+  // Only the homepage can have a transparent navbar
+  const isHomePage = pathname === "/";
+
+  useEffect(() => {
+    if (!isHomePage) {
+      setScrolled(false);
+      return;
+    }
+
+    const handleScroll = () => {
+      // Change navbar after leaving the hero section
+      const heroHeight = window.innerHeight;
+
+      setScrolled(window.scrollY > heroHeight - 80);
+    };
+
+    handleScroll();
+
+    window.addEventListener("scroll", handleScroll);
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, [isHomePage]);
+
+  const transparentNavbar = isHomePage && !scrolled;
 
   return (
-    <header className="absolute left-0 top-0 z-50 w-full">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 lg:px-8">
+    <header
+      className={`fixed left-0 top-0 z-50 w-full transition-all duration-300 ${
+        transparentNavbar
+          ? "bg-transparent"
+          : "bg-[#173C37] shadow-lg"
+      }`}
+    >
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
+        
         {/* LOGO */}
-        <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/10 backdrop-blur-md">
-            <ShieldCheck className="h-6 w-6 text-[#63E6BE]" />
+        <Link
+          href="/"
+          className="flex items-center gap-2"
+          onClick={() => setMenuOpen(false)}
+        >
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#63E6BE]">
+            <ShieldCheck className="h-5 w-5 text-[#173C37]" />
           </div>
 
           <span className="text-xl font-bold tracking-tight text-white">
@@ -24,21 +66,21 @@ const Navbar = () => {
         {/* DESKTOP NAV */}
         <nav className="hidden items-center gap-8 md:flex">
           <Link
-            href="#stays"
+            href="/accommodations"
             className="text-sm font-medium text-white/80 transition hover:text-white"
           >
             Explore stays
           </Link>
 
           <Link
-            href="#safety"
+            href="/#safety"
             className="text-sm font-medium text-white/80 transition hover:text-white"
           >
             How it works
           </Link>
 
           <Link
-            href="#owners"
+            href="/#owners"
             className="text-sm font-medium text-white/80 transition hover:text-white"
           >
             List your property
@@ -66,7 +108,7 @@ const Navbar = () => {
         <button
           type="button"
           onClick={() => setMenuOpen(!menuOpen)}
-          className="rounded-lg p-2 text-white md:hidden"
+          className="rounded-lg p-2 text-white transition hover:bg-white/10 md:hidden"
           aria-label="Toggle navigation menu"
         >
           {menuOpen ? (
@@ -79,10 +121,11 @@ const Navbar = () => {
 
       {/* MOBILE MENU */}
       {menuOpen && (
-        <div className="mx-4 rounded-2xl border border-white/10 bg-[#10201E]/95 p-5 shadow-2xl backdrop-blur-xl md:hidden">
+        <div className="mx-4 mb-4 rounded-2xl border border-white/10 bg-[#10201E]/95 p-5 shadow-2xl backdrop-blur-xl md:hidden">
           <nav className="flex flex-col gap-2">
+
             <Link
-              href="#stays"
+              href="/accommodations"
               onClick={() => setMenuOpen(false)}
               className="rounded-xl px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10"
             >
@@ -90,7 +133,7 @@ const Navbar = () => {
             </Link>
 
             <Link
-              href="#safety"
+              href="/#safety"
               onClick={() => setMenuOpen(false)}
               className="rounded-xl px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10"
             >
@@ -98,7 +141,7 @@ const Navbar = () => {
             </Link>
 
             <Link
-              href="#owners"
+              href="/#owners"
               onClick={() => setMenuOpen(false)}
               className="rounded-xl px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10"
             >
@@ -110,7 +153,7 @@ const Navbar = () => {
             <Link
               href="/login"
               onClick={() => setMenuOpen(false)}
-              className="rounded-xl px-4 py-3 text-center text-sm font-semibold text-white"
+              className="rounded-xl px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-white/10"
             >
               Log in
             </Link>
@@ -118,10 +161,11 @@ const Navbar = () => {
             <Link
               href="/register"
               onClick={() => setMenuOpen(false)}
-              className="rounded-xl bg-[#63E6BE] px-4 py-3 text-center text-sm font-semibold text-[#173C37]"
+              className="rounded-xl bg-[#63E6BE] px-4 py-3 text-center text-sm font-semibold text-[#173C37] transition hover:bg-[#7AEECC]"
             >
               Get started
             </Link>
+
           </nav>
         </div>
       )}
@@ -130,3 +174,4 @@ const Navbar = () => {
 };
 
 export default Navbar;
+
