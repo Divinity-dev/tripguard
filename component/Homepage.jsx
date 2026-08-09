@@ -1,18 +1,70 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { useState } from "react";
+import { getStatesData } from "nigeria-state-lga-data";
 import {
   Search,
   MapPin,
   ChevronDown,
   ShieldCheck,
   ArrowRight,
+  ArrowLeft,
   Star,
   HeartHandshake,
+  Heart,
+  Users,
 } from "lucide-react";
 
-import Navbar from "../component/Navbar";
+const nigeriaStatesData = getStatesData();
+
+const reviews = [
+  {
+    name: "Amaka Okafor",
+    location: "Lagos, Nigeria",
+    initials: "AO",
+    text: "Finding a comfortable place was easy, but knowing someone I trusted would be notified about my stay gave me an extra level of confidence.",
+  },
+  {
+    name: "Daniel Williams",
+    location: "Abuja, Nigeria",
+    initials: "DW",
+    text: "The whole experience felt simple and reassuring. I found a beautiful apartment and loved the idea that my loved one could know where I was staying.",
+  },
+  {
+    name: "Sarah Adeyemi",
+    location: "Port Harcourt, Nigeria",
+    initials: "SA",
+    text: "TripGuard makes booking feel different. It's not just about finding a nice place to stay; there's a real sense that someone's looking out for you.",
+  },
+  {
+    name: "Chinedu Okoro",
+    location: "Enugu, Nigeria",
+    initials: "CO",
+    text: "The booking experience was smooth from start to finish. I especially appreciated the safety features because I travel frequently on my own.",
+  },
+  {
+    name: "Fatima Bello",
+    location: "Kano, Nigeria",
+    initials: "FB",
+    text: "I loved how easy it was to find a place that matched what I needed. Having someone I trust kept informed made the whole trip feel even better.",
+  },
+];
 
 const HomePage = () => {
+  const [reviewStart, setReviewStart] = useState(0);
+  const [selectedState, setSelectedState] = useState("");
+  const [selectedCity, setSelectedCity] = useState("");
+  const [selectedLga, setSelectedLga] = useState("");
+
+  const selectedStateRecord = nigeriaStatesData.find(
+    (countryState) => countryState.name === selectedState
+  );
+
+  const cityOptions = selectedStateRecord?.towns ?? [];
+  const lgaOptions = selectedStateRecord?.lgas ?? [];
+
   return (
     <main className="min-h-screen bg-[#F7F6F0] text-[#172322]">
       {/* HERO */}
@@ -31,9 +83,6 @@ const HomePage = () => {
 
         {/* GRADIENT */}
         <div className="absolute inset-0 bg-gradient-to-b from-[#07110F]/75 via-[#07110F]/25 to-[#10201E]/95" />
-
-        {/* NAVBAR */}
-        <Navbar />
 
         {/* HERO CONTENT */}
         <div className="relative z-10 flex min-h-screen items-center">
@@ -84,18 +133,22 @@ const HomePage = () => {
                       {/* STATE */}
                       <div className="relative">
                         <select
-                          defaultValue=""
+                          value={selectedState}
+                          onChange={(e) => {
+                            setSelectedState(e.target.value);
+                            setSelectedCity("");
+                            setSelectedLga("");
+                          }}
                           className="h-12 w-full appearance-none rounded-xl border border-[#E2E3DD] bg-white px-3 pr-9 text-sm font-medium text-[#172322] outline-none transition focus:border-[#397A69] focus:ring-2 focus:ring-[#397A69]/10"
                         >
-                          <option value="" disabled>
+                          <option value="">
                             State
                           </option>
-                          <option>Lagos</option>
-                          <option>Abuja</option>
-                          <option>Rivers</option>
-                          <option>Oyo</option>
-                          <option>Delta</option>
-                          <option>Edo</option>
+                          {nigeriaStatesData.map((countryState) => (
+                            <option key={countryState.name} value={countryState.name}>
+                              {countryState.name}
+                            </option>
+                          ))}
                         </select>
 
                         <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7A8581]" />
@@ -104,18 +157,23 @@ const HomePage = () => {
                       {/* CITY */}
                       <div className="relative">
                         <select
-                          defaultValue=""
-                          className="h-12 w-full appearance-none rounded-xl border border-[#E2E3DD] bg-white px-3 pr-9 text-sm font-medium text-[#172322] outline-none transition focus:border-[#397A69] focus:ring-2 focus:ring-[#397A69]/10"
+                          value={selectedCity}
+                          onChange={(e) => {
+                            setSelectedCity(e.target.value);
+                            setSelectedLga("");
+                          }}
+                          disabled={!selectedState}
+                          className="h-12 w-full appearance-none rounded-xl border border-[#E2E3DD] bg-white px-3 pr-9 text-sm font-medium text-[#172322] outline-none transition disabled:cursor-not-allowed disabled:bg-[#F3F4F1] disabled:text-[#A0A8A5] focus:border-[#397A69] focus:ring-2 focus:ring-[#397A69]/10"
                         >
-                          <option value="" disabled>
+                          <option value="">
                             City
                           </option>
-                          <option>Lagos</option>
-                          <option>Ikeja</option>
-                          <option>Victoria Island</option>
-                          <option>Lekki</option>
-                          <option>Abuja</option>
-                          <option>Port Harcourt</option>
+
+                          {cityOptions.map((city) => (
+                            <option key={city} value={city}>
+                              {city}
+                            </option>
+                          ))}
                         </select>
 
                         <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7A8581]" />
@@ -124,17 +182,20 @@ const HomePage = () => {
                       {/* LGA */}
                       <div className="relative">
                         <select
-                          defaultValue=""
-                          className="h-12 w-full appearance-none rounded-xl border border-[#E2E3DD] bg-white px-3 pr-9 text-sm font-medium text-[#172322] outline-none transition focus:border-[#397A69] focus:ring-2 focus:ring-[#397A69]/10"
+                          value={selectedLga}
+                          onChange={(e) => setSelectedLga(e.target.value)}
+                          disabled={!selectedState}
+                          className="h-12 w-full appearance-none rounded-xl border border-[#E2E3DD] bg-white px-3 pr-9 text-sm font-medium text-[#172322] outline-none transition disabled:cursor-not-allowed disabled:bg-[#F3F4F1] disabled:text-[#A0A8A5] focus:border-[#397A69] focus:ring-2 focus:ring-[#397A69]/10"
                         >
-                          <option value="" disabled>
+                          <option value="">
                             LGA
                           </option>
-                          <option>Ikeja</option>
-                          <option>Eti-Osa</option>
-                          <option>Surulere</option>
-                          <option>Alimosho</option>
-                          <option>Kosofe</option>
+
+                          {lgaOptions.map((lga) => (
+                            <option key={lga} value={lga}>
+                              {lga}
+                            </option>
+                          ))}
                         </select>
 
                         <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7A8581]" />
@@ -270,90 +331,406 @@ const HomePage = () => {
       </section>
 
       {/* FEATURED STAYS */}
-      <section id="stays" className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
-        <div className="flex items-end justify-between">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#397A69]">
-              Popular right now
-            </p>
+      {/* FEATURED STAYS */}
+<section id="stays" className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
+  <div className="flex items-end justify-between">
+    <div>
+      <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#397A69]">
+        Popular right now
+      </p>
 
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-              Places worth staying.
-            </h2>
+      <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
+        Places worth staying.
+      </h2>
+    </div>
+
+    <Link
+      href="/accommodations"
+      className="hidden items-center gap-2 text-sm font-semibold text-[#173C37] transition hover:text-[#397A69] sm:flex"
+    >
+      Explore all
+      <ArrowRight className="h-4 w-4" />
+    </Link>
+  </div>
+
+  <div className="mt-10 grid gap-x-6 gap-y-10 md:grid-cols-3">
+    {[
+      {
+        id: "the-meridian-house",
+        name: "The Meridian House",
+        location: "Victoria Island, Lagos",
+        price: 185000,
+        rating: 4.9,
+        reviews: 128,
+        type: "Luxury Hotel",
+        guests: 2,
+        image:
+          "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=90",
+        amenities: ["Wi-Fi", "Parking", "Restaurant", "Pool"],
+        description:
+          "A refined stay in the heart of Victoria Island with contemporary comfort and a peaceful atmosphere.",
+      },
+      {
+        id: "palm-court-residence",
+        name: "Palm Court Residence",
+        location: "Lekki Phase 1, Lagos",
+        price: 95000,
+        rating: 4.8,
+        reviews: 94,
+        type: "Serviced Apartment",
+        guests: 2,
+        image:
+          "https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1200&q=90",
+        amenities: ["Wi-Fi", "Parking", "Kitchen", "Housekeeping"],
+        description:
+          "A stylish and comfortable serviced apartment close to some of Lagos's most popular destinations.",
+      },
+      {
+        id: "cedar-view-suites",
+        name: "Cedar View Suites",
+        location: "Wuse 2, Abuja",
+        price: 120000,
+        rating: 4.9,
+        reviews: 76,
+        type: "Boutique Hotel",
+        guests: 2,
+        image:
+          "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=90",
+        amenities: ["Wi-Fi", "Parking", "Restaurant", "Pool"],
+        description:
+          "A calm and sophisticated stay in Wuse 2, designed for travellers who value comfort and convenience.",
+      },
+    ].map((stay) => (
+      <article
+        key={stay.id}
+        className="group overflow-hidden rounded-[24px] border border-[#E4E3DC] bg-white transition duration-300 hover:-translate-y-1 hover:shadow-xl"
+      >
+        {/* IMAGE */}
+        <div className="relative aspect-[4/3] overflow-hidden">
+          <Link href={`/accommodations/${stay.id}`}>
+            <Image
+              src={stay.image}
+              alt={stay.name}
+              fill
+              className="object-cover transition duration-700 group-hover:scale-105"
+            />
+          </Link>
+
+          {/* TYPE */}
+          <div className="absolute left-4 top-4">
+            <span className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-bold text-[#173C37] shadow-sm">
+              {stay.type}
+            </span>
           </div>
 
-          <Link
-            href="/accommodations"
-            className="hidden items-center gap-2 text-sm font-semibold text-[#173C37] sm:flex"
+          {/* SAVE */}
+          <button
+            type="button"
+            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/95 shadow-sm transition hover:scale-105"
+            aria-label="Save accommodation"
           >
-            Explore all
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+            <Heart className="h-5 w-5 text-[#173C37]" />
+          </button>
         </div>
 
-        <div className="mt-10 grid gap-7 md:grid-cols-3">
-          {[
-            {
-              name: "The Meridian House",
-              location: "Victoria Island, Lagos",
-              price: "₦185,000",
-              image:
-                "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=85",
-            },
-            {
-              name: "Palm Court Residence",
-              location: "Lekki Phase 1, Lagos",
-              price: "₦95,000",
-              image:
-                "https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1200&q=85",
-            },
-            {
-              name: "Cedar View Suites",
-              location: "Wuse 2, Abuja",
-              price: "₦120,000",
-              image:
-                "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=85",
-            },
-          ].map((stay) => (
+        {/* CARD CONTENT */}
+        <div className="p-5">
+          <div className="flex items-start justify-between gap-4">
             <Link
-              key={stay.name}
-              href="/accommodations"
-              className="group overflow-hidden rounded-3xl bg-white ring-1 ring-[#E5E4DD] transition hover:-translate-y-1 hover:shadow-xl"
+              href={`/accommodations/${stay.id}`}
+              className="min-w-0"
             >
-              <div className="relative aspect-[4/3] overflow-hidden">
-                <Image
-                  src={stay.image}
-                  alt={stay.name}
-                  fill
-                  className="object-cover transition duration-700 group-hover:scale-105"
-                />
+              <h3 className="truncate text-lg font-semibold text-[#172322] transition group-hover:text-[#397A69]">
+                {stay.name}
+              </h3>
 
-                <div className="absolute right-4 top-4 flex items-center gap-1 rounded-full bg-white/90 px-3 py-1.5 text-xs font-semibold text-[#173C37]">
-                  <Star className="h-3.5 w-3.5 fill-[#F3C95D] text-[#F3C95D]" />
-                  4.9
-                </div>
-              </div>
-
-              <div className="p-5">
-                <h3 className="font-semibold">{stay.name}</h3>
-
-                <div className="mt-2 flex items-center gap-1.5 text-sm text-[#7A8581]">
-                  <MapPin className="h-3.5 w-3.5" />
-                  {stay.location}
-                </div>
-
-                <div className="mt-5 border-t border-[#ECEBE5] pt-4">
-                  <span className="font-bold text-[#173C37]">
-                    {stay.price}
-                  </span>
-
-                  <span className="text-sm text-[#8A9390]"> / night</span>
-                </div>
+              <div className="mt-2 flex items-center gap-1.5 text-sm text-[#7A8581]">
+                <MapPin className="h-3.5 w-3.5 text-[#397A69]" />
+                {stay.location}
               </div>
             </Link>
-          ))}
+
+            <div className="flex shrink-0 items-center gap-1 text-sm font-semibold text-[#173C37]">
+              <Star className="h-4 w-4 fill-[#F3C95D] text-[#F3C95D]" />
+              {stay.rating}
+            </div>
+          </div>
+
+          {/* DESCRIPTION */}
+          <p className="mt-4 line-clamp-2 text-sm leading-6 text-[#75817D]">
+            {stay.description}
+          </p>
+
+          {/* AMENITIES */}
+          <div className="mt-5 flex flex-wrap gap-2">
+            {stay.amenities.slice(0, 3).map((amenity) => (
+              <span
+                key={amenity}
+                className="rounded-lg bg-[#F3F5F1] px-2.5 py-1.5 text-[11px] font-medium text-[#596661]"
+              >
+                {amenity}
+              </span>
+            ))}
+
+            {stay.amenities.length > 3 && (
+              <span className="rounded-lg bg-[#F3F5F1] px-2.5 py-1.5 text-[11px] font-medium text-[#596661]">
+                +{stay.amenities.length - 3}
+              </span>
+            )}
+          </div>
+
+          {/* BOTTOM */}
+          <div className="mt-5 flex items-end justify-between border-t border-[#ECEBE5] pt-5">
+            <div>
+              <span className="text-xl font-bold text-[#173C37]">
+                ₦{stay.price.toLocaleString()}
+              </span>
+
+              <span className="text-xs text-[#7A8581]">
+                {" "}
+                / night
+              </span>
+
+              <div className="mt-1 flex items-center gap-1.5 text-xs text-[#8A9390]">
+                <Users className="h-3.5 w-3.5" />
+                Up to {stay.guests} guests
+              </div>
+            </div>
+
+            <Link
+              href={`/accommodations/${stay.id}`}
+              className="rounded-xl bg-[#173C37] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#23584E]"
+            >
+              View stay
+            </Link>
+          </div>
+
+          {/* REVIEWS */}
+          <div className="mt-4 flex items-center gap-1.5 text-xs text-[#7A8581]">
+            <Star className="h-3.5 w-3.5 fill-[#F3C95D] text-[#F3C95D]" />
+
+            <span className="font-semibold text-[#596661]">
+              {stay.rating}
+            </span>
+
+            <span>·</span>
+
+            <span>{stay.reviews} reviews</span>
+          </div>
         </div>
-      </section>
+      </article>
+    ))}
+  </div>
+
+  {/* MOBILE EXPLORE LINK */}
+  <div className="mt-8 flex justify-center sm:hidden">
+    <Link
+      href="/accommodations"
+      className="flex items-center gap-2 text-sm font-semibold text-[#173C37]"
+    >
+      Explore all stays
+      <ArrowRight className="h-4 w-4" />
+    </Link>
+  </div>
+</section>
+
+      {/* CUSTOMER REVIEWS */}
+
+<section className="bg-[#F7F6F0] py-24">
+  <div className="mx-auto max-w-7xl px-5 lg:px-8">
+
+
+{/* SECTION HEADER */}
+<div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+  <div className="max-w-2xl">
+    <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#397A69]">
+      Guest experiences
+    </p>
+
+    <h2 className="mt-3 text-3xl font-semibold tracking-tight text-[#172322] sm:text-4xl lg:text-5xl">
+      Stories from happy travellers.
+    </h2>
+
+    <p className="mt-4 max-w-xl text-base leading-7 text-[#75817D]">
+      Discover why travellers choose TripGuard when they want a
+      comfortable stay and the reassurance of knowing someone has
+      their back.
+    </p>
+  </div>
+
+  {/* RATING + NAVIGATION */}
+  <div className="flex items-center gap-3">
+    {/* RATING */}
+    <div className="flex items-center gap-3 rounded-2xl border border-[#E2E1DA] bg-white px-5 py-4 shadow-sm">
+      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#E1F5ED]">
+        <Star className="h-5 w-5 fill-[#F3C95D] text-[#F3C95D]" />
+      </div>
+
+      <div>
+        <div className="flex items-center gap-2">
+          <span className="text-lg font-bold text-[#173C37]">
+            4.9
+          </span>
+
+          <div className="flex items-center gap-0.5">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <Star
+                key={star}
+                className="h-3.5 w-3.5 fill-[#F3C95D] text-[#F3C95D]"
+              />
+            ))}
+          </div>
+        </div>
+
+        <p className="mt-0.5 text-xs text-[#7A8581]">
+          Loved by our guests
+        </p>
+      </div>
+    </div>
+
+    {/* NAVIGATION BUTTONS */}
+    <button
+      type="button"
+      onClick={() =>
+        setReviewStart((current) => Math.max(current - 1, 0))
+      }
+      disabled={reviewStart === 0}
+      className="flex h-12 w-12 items-center justify-center rounded-full border border-[#DCDDD6] bg-white text-[#173C37] shadow-sm transition hover:bg-[#173C37] hover:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-[#173C37]"
+      aria-label="Previous reviews"
+    >
+      <ArrowLeft className="h-5 w-5" />
+    </button>
+
+    <button
+      type="button"
+      onClick={() =>
+        setReviewStart((current) =>
+          Math.min(current + 1, reviews.length - 3)
+        )
+      }
+      disabled={reviewStart === reviews.length - 3}
+      className="flex h-12 w-12 items-center justify-center rounded-full border border-[#173C37] bg-[#173C37] text-white shadow-sm transition hover:bg-[#23584E] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[#173C37]"
+      aria-label="Next reviews"
+    >
+      <ArrowRight className="h-5 w-5" />
+    </button>
+  </div>
+</div>
+
+{/* REVIEWS */}
+<div className="mt-14 overflow-hidden">
+  <div
+    className="flex gap-6 transition-transform duration-500 ease-out"
+    style={{
+      transform: `translateX(calc(-${reviewStart * (100 / 3)}% - ${
+        reviewStart * 8
+      }px))`,
+    }}
+  >
+    {reviews.map((review, index) => (
+      <article
+        key={review.name}
+        className={`group flex min-w-full flex-col rounded-[28px] border border-[#E4E3DC] p-7 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl sm:min-w-[calc(50%-12px)] lg:min-w-[calc(33.333%-16px)] sm:p-8 ${
+          index === 1
+            ? "bg-[#173C37] text-white"
+            : "bg-white"
+        }`}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex gap-1">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <Star
+                key={star}
+                className="h-4 w-4 fill-[#F3C95D] text-[#F3C95D]"
+              />
+            ))}
+          </div>
+
+          <span
+            className={`text-3xl font-serif leading-none ${
+              index === 1
+                ? "text-white/15"
+                : "text-[#DCEAE5]"
+            }`}
+          >
+            “
+          </span>
+        </div>
+
+        <p
+          className={`mt-6 flex-1 text-[15px] leading-7 ${
+            index === 1
+              ? "text-white/75"
+              : "text-[#46534F]"
+          }`}
+        >
+          “{review.text}”
+        </p>
+
+        <div
+          className={`mt-8 flex items-center gap-3 border-t pt-6 ${
+            index === 1
+              ? "border-white/10"
+              : "border-[#ECEBE5]"
+          }`}
+        >
+          <div
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
+              index === 1
+                ? "bg-[#63E6BE] text-[#173C37]"
+                : index === 2
+                ? "bg-[#E1F5ED] text-[#277765]"
+                : "bg-[#173C37] text-[#63E6BE]"
+            }`}
+          >
+            {review.initials}
+          </div>
+
+          <div>
+            <p
+              className={`font-semibold ${
+                index === 1
+                  ? "text-white"
+                  : "text-[#172322]"
+              }`}
+            >
+              {review.name}
+            </p>
+
+            <p
+              className={`mt-0.5 text-xs ${
+                index === 1
+                  ? "text-white/50"
+                  : "text-[#7A8581]"
+              }`}
+            >
+              {review.location}
+            </p>
+          </div>
+        </div>
+      </article>
+    ))}
+  </div>
+</div>
+
+{/* SLIDE INDICATORS */}
+<div className="mt-8 flex justify-center gap-2">
+  {reviews.slice(0, reviews.length - 2).map((_, index) => (
+    <button
+      key={index}
+      type="button"
+      onClick={() => setReviewStart(index)}
+      aria-label={`Go to review group ${index + 1}`}
+      className={`h-2 rounded-full transition-all duration-300 ${
+        reviewStart === index
+          ? "w-7 bg-[#173C37]"
+          : "w-2 bg-[#CBD3CF]"
+      }`}
+    />
+  ))}
+</div>
+  </div>
+</section>
 
       {/* SAFETY SECTION */}
       <section id="safety" className="bg-[#173C37] text-white">
