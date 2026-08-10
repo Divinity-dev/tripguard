@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { getStatesData } from "nigeria-state-lga-data";
+import BookStayModal from "./BookStayModal";
 import {
   Search,
   MapPin,
@@ -57,6 +58,7 @@ const HomePage = () => {
   const [selectedState, setSelectedState] = useState("");
   const [selectedCity, setSelectedCity] = useState("");
   const [selectedLga, setSelectedLga] = useState("");
+  const [bookModalOpen, setBookModalOpen] = useState(false);
 
   const selectedStateRecord = nigeriaStatesData.find(
     (countryState) => countryState.name === selectedState
@@ -64,6 +66,10 @@ const HomePage = () => {
 
   const cityOptions = selectedStateRecord?.towns ?? [];
   const lgaOptions = selectedStateRecord?.lgas ?? [];
+
+  const handleBookSubmit = () => {
+    setBookModalOpen(false);
+  };
 
   return (
     <main className="min-h-screen bg-[#F7F6F0] text-[#172322]">
@@ -497,12 +503,21 @@ const HomePage = () => {
               </div>
             </div>
 
-            <Link
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Link
               href={`/accommodations/${stay.id}`}
               className="rounded-xl bg-[#173C37] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#23584E]"
             >
               View stay
             </Link>
+            <button
+             type="button"
+             onClick={() => setBookModalOpen(true)}
+             className="rounded-xl bg-[#173C37] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#23584E]"
+            >
+              Book
+            </button>
+            </div>
           </div>
 
           {/* REVIEWS */}
@@ -758,6 +773,12 @@ const HomePage = () => {
           </div>
         </div>
       </section>
+
+      <BookStayModal
+        isOpen={bookModalOpen}
+        onClose={() => setBookModalOpen(false)}
+        onSubmit={handleBookSubmit}
+      />
     </main>
   );
 }
