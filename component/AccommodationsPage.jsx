@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { getStatesData } from "nigeria-state-lga-data";
+import BookStayModal from "./BookStayModal";
 
 import {
   Search,
@@ -202,6 +203,7 @@ const AccommodationsPage = () => {
   const [type, setType] = useState("All types");
   const [guests, setGuests] = useState("Any number");
   const [sort, setSort] = useState("Recommended");
+  const [bookModalOpen, setBookModalOpen] = useState(false);
 
   const [state, setState] = useState("");
   const [city, setCity] = useState("");
@@ -315,7 +317,9 @@ const matchesLga =
   city ||
   lga;
 
-    
+  const handleBookSubmit = () => {
+    setBookModalOpen(false);
+  };
 
   return (
     <main className="min-h-screen bg-[#F8F8F4] text-[#172322]">
@@ -695,12 +699,21 @@ const matchesLga =
                         </div>
                       </div>
 
-                      <Link
-                        href={`/accommodations/${accommodation.id}`}
-                        className="rounded-xl bg-[#173C37] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#23584E]"
-                      >
-                        View stay
-                      </Link>
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Link
+              href={`/accommodations/${accommodation.id}`}
+              className="rounded-xl bg-[#173C37] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#23584E]"
+            >
+              View stay
+            </Link>
+            <button
+             type="button"
+             onClick={() => setBookModalOpen(true)}
+             className="rounded-xl bg-[#173C37] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#23584E]"
+            >
+              Book
+            </button>
+            </div>
 
                     </div>
 
@@ -921,6 +934,12 @@ const matchesLga =
           </div>
         </div>
       )}
+
+      <BookStayModal
+        isOpen={bookModalOpen}
+        onClose={() => setBookModalOpen(false)}
+        onSubmit={handleBookSubmit}
+      />
 
     </main>
   );

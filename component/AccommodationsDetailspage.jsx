@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
+import BookStayModal from "./BookStayModal";
 
 import {
   ArrowLeft,
@@ -289,6 +290,11 @@ const AccommodationDetailPage = ({ id }) => {
   const accommodation = accommodations[id];
   const [activeImage, setActiveImage] = useState(0);
   const [showGallery, setShowGallery] = useState(false);
+  const [bookModalOpen, setBookModalOpen] = useState(false);
+
+  const handleBookSubmit = () => {
+    setBookModalOpen(false);
+  };
 
   if (!accommodation) {
     return (
@@ -777,13 +783,14 @@ const AccommodationDetailPage = ({ id }) => {
                 </div>
               </div>
 
-              {/* CHECK IN */}
+              {/* BOOK */}
               <button
                 type="button"
+                onClick={() => setBookModalOpen(true)}
                 className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-[#173C37] px-5 py-4 font-semibold text-white transition hover:bg-[#23584E]"
               >
                 <ShieldCheck className="h-5 w-5 text-[#63E6BE]" />
-                Check In
+                Book
               </button>
 
               <p className="mt-3 text-center text-xs text-[#8A9390]">
@@ -879,6 +886,12 @@ const AccommodationDetailPage = ({ id }) => {
           </div>
         </div>
       )}
+
+      <BookStayModal
+        isOpen={bookModalOpen}
+        onClose={() => setBookModalOpen(false)}
+        onSubmit={handleBookSubmit}
+      />
     </main>
   );
 };

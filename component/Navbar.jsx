@@ -80,7 +80,7 @@ const Navbar = () => {
           </Link>
 
           <Link
-            href="/#owners"
+            href="/owner"
             className="text-sm font-medium text-white/80 transition hover:text-white"
           >
             List your property
@@ -141,7 +141,7 @@ const Navbar = () => {
             </Link>
 
             <Link
-              href="/#owners"
+              href="/owner"
               onClick={() => setMenuOpen(false)}
               className="rounded-xl px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10"
             >
