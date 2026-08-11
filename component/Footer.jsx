@@ -60,10 +60,19 @@ export default function Footer() {
 
               <li>
                 <Link
-                  href="/how-it-works"
+                  href="/about"
                   className="text-sm text-gray-400 transition hover:text-[#63E6BE]"
                 >
-                  How it works
+                  About Us
+                </Link>
+              </li>
+
+               <li>
+                <Link
+                  href="/privacy"
+                  className="text-sm text-gray-400 transition hover:text-[#63E6BE]"
+                >
+                  Privacy Policy
                 </Link>
               </li>
             </ul>
@@ -165,7 +174,7 @@ export default function Footer() {
           </div>
 
           <Link
-            href="/how-it-works"
+            href="/about"
             className="inline-flex items-center gap-2 text-sm font-medium text-[#63E6BE] transition hover:text-white"
           >
             Learn more

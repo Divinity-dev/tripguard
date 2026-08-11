@@ -72,19 +72,28 @@ const Navbar = () => {
             Explore stays
           </Link>
 
-          <Link
-            href="/#safety"
-            className="text-sm font-medium text-white/80 transition hover:text-white"
-          >
-            How it works
-          </Link>
-
-          <Link
+            <Link
             href="/owner"
             className="text-sm font-medium text-white/80 transition hover:text-white"
           >
             List your property
           </Link>
+
+          <Link
+            href="/about"
+            className="text-sm font-medium text-white/80 transition hover:text-white"
+          >
+           About Us
+          </Link>
+
+            <Link
+            href="/contact"
+            className="text-sm font-medium text-white/80 transition hover:text-white"
+          >
+            Contact Us
+          </Link>
+
+        
         </nav>
 
         {/* DESKTOP ACTIONS */}
@@ -132,21 +141,30 @@ const Navbar = () => {
               Explore stays
             </Link>
 
-            <Link
-              href="/#safety"
-              onClick={() => setMenuOpen(false)}
-              className="rounded-xl px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10"
-            >
-              How it works
-            </Link>
-
-            <Link
+              <Link
               href="/owner"
               onClick={() => setMenuOpen(false)}
               className="rounded-xl px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10"
             >
               List your property
             </Link>
+
+            <Link
+              href="/about"
+              onClick={() => setMenuOpen(false)}
+              className="rounded-xl px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10"
+            >
+              About Us
+            </Link>
+            
+              <Link
+              href="/contact"
+              onClick={() => setMenuOpen(false)}
+              className="rounded-xl px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10"
+            >
+              Contact Us
+            </Link>
+          
 
             <div className="my-2 h-px bg-white/10" />
 
