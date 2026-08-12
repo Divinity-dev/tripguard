@@ -26,6 +26,16 @@ import {
   LockKeyhole,
 } from "lucide-react";
 
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://localhost:5000/api";
+
+const CLOUDINARY_CLOUD_NAME =
+  process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+
+const CLOUDINARY_UPLOAD_PRESET =
+  process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+
 const propertyTypes = [
   "Luxury Hotel",
   "Boutique Hotel",
@@ -163,6 +173,13 @@ export default function ListPropertyPage() {
         ? current.filter((item) => item !== amenityId)
         : [...current, amenityId]
     );
+
+    if (errors.amenities) {
+      setErrors((current) => ({
+        ...current,
+        amenities: "",
+      }));
+    }
   };
 
   const handleImageUpload = (event) => {
@@ -181,6 +198,15 @@ export default function ListPropertyPage() {
     }));
 
     setImages((current) => [...current, ...imageObjects]);
+
+    if (errors.images) {
+      setErrors((current) => ({
+        ...current,
+        images: "",
+      }));
+    }
+
+    event.target.value = "";
   };
 
   const removeImage = (imageId) => {
@@ -243,8 +269,8 @@ export default function ListPropertyPage() {
       newErrors.description = "Please describe your property.";
     }
 
-    if (!formData.price) {
-      newErrors.price = "Price per night is required.";
+    if (!formData.price || Number(formData.price) <= 0) {
+      newErrors.price = "Enter a valid price per night.";
     }
 
     if (!images.length) {
@@ -258,6 +284,47 @@ export default function ListPropertyPage() {
     setErrors(newErrors);
 
     return Object.keys(newErrors).length === 0;
+  };
+
+  const uploadImagesToCloudinary = async () => {
+    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {
+      throw new Error(
+        "Cloudinary configuration is missing. Please check your frontend environment variables."
+      );
+    }
+
+    const uploadedImages = [];
+
+    for (const image of images) {
+      const uploadData = new FormData();
+
+      uploadData.append("file", image.file);
+      uploadData.append(
+        "upload_preset",
+        CLOUDINARY_UPLOAD_PRESET
+      );
+
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+        {
+          method: "POST",
+          body: uploadData,
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.secure_url) {
+        throw new Error(
+          data.error?.message ||
+            "Unable to upload property image."
+        );
+      }
+
+      uploadedImages.push(data.secure_url);
+    }
+
+    return uploadedImages;
   };
 
   const handleSubmit = async (event) => {
@@ -276,31 +343,155 @@ export default function ListPropertyPage() {
 
     try {
       /*
-       * Later, this is where we will:
-       *
-       * 1. Upload images to Cloudinary.
-       * 2. Send the property information to the backend.
-       * 3. Save the accommodation in MongoDB.
-       * 4. Associate it with the logged-in property owner.
-       * 5. Put the property into an admin approval queue.
+       * STEP 1
+       * Upload all selected images to Cloudinary.
        */
+      const imageUrls = await uploadImagesToCloudinary();
 
-      console.log({
-        ...formData,
+      /*
+       * STEP 2
+       * Build the accommodation payload.
+       *
+       * Notice that there is NO owner field here.
+       *
+       * The backend gets the owner from:
+       * req.user.id
+       *
+       * This means one property owner account can own
+       * multiple accommodations.
+       */
+      const accommodationData = {
+        name: formData.propertyName.trim(),
+
+        description: formData.description.trim(),
+
+        type: formData.propertyType,
+
+        images: imageUrls,
+
+        pricePerNight: Number(formData.price),
+
+        location: {
+          state: formData.state.trim(),
+          city: formData.city.trim(),
+          lga: formData.lga.trim(),
+          address: formData.address.trim(),
+        },
+
         amenities: selectedAmenities,
+
+        bedrooms: Number(formData.bedrooms),
+
+        bathrooms: Number(formData.bathrooms),
+
+        maxGuests: Number(formData.guests),
+
+        checkInTime: formData.checkInTime.trim(),
+
+        checkOutTime: formData.checkOutTime.trim(),
+
+        propertyWebsite: formData.website.trim(),
+
+        /*
+         * These are retained from the form for future
+         * accommodation model support.
+         */
+        beds: Number(formData.beds),
+
         rules,
-        images,
+      };
+
+      /*
+       * STEP 3
+       * Send the property to the authenticated backend.
+       */
+      const response = await fetch(
+        `${API_URL}/accommodations`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify(accommodationData),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message ||
+            "Unable to submit your property."
+        );
+      }
+
+      /*
+       * STEP 4
+       * Clean up local image preview URLs.
+       */
+      images.forEach((image) => {
+        URL.revokeObjectURL(image.preview);
       });
 
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      /*
+       * STEP 5
+       * Reset the form after successful submission.
+       */
+      setFormData({
+        propertyName: "",
+        propertyType: "",
+        state: "",
+        city: "",
+        lga: "",
+        address: "",
+        website: "",
+        description: "",
+        price: "",
+        guests: "2",
+        bedrooms: "1",
+        beds: "1",
+        bathrooms: "1",
+        checkInTime: "2:00 PM",
+        checkOutTime: "12:00 PM",
+      });
+
+      setSelectedAmenities([]);
+      setRules(defaultRules);
+      setNewRule("");
+      setImages([]);
+      setErrors({});
 
       alert(
-        "Your property has been submitted successfully for review."
+        data.message ||
+          "Your property has been submitted successfully for review."
       );
+    } catch (error) {
+      console.error("Submit property error:", error);
+
+      setErrors({
+        submit:
+          error.message ||
+          "Unable to submit your property. Please try again.",
+      });
+
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const TRIPGUARD_FEE_PERCENTAGE = 10;
+
+  const basePrice = Number(formData.price) || 0;
+
+const tripGuardFee =
+  basePrice * (TRIPGUARD_FEE_PERCENTAGE / 100);
+
+const customerPrice = basePrice + tripGuardFee;
 
   return (
     <main className="min-h-screen bg-[#F7F7F2] text-[#172322]">
@@ -357,6 +548,12 @@ export default function ListPropertyPage() {
             Complete all required information before submitting your
             property.
           </p>
+
+          {errors.submit && (
+            <div className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+              {errors.submit}
+            </div>
+          )}
         </div>
       </section>
 
@@ -513,7 +710,7 @@ export default function ListPropertyPage() {
 
               <p className="mt-2 text-sm text-[#7A8581]">
                 This helps travellers find your property using
-                TripGuard's location search.
+                TripGuard&apos;s location search.
               </p>
             </div>
           </div>
@@ -994,9 +1191,7 @@ export default function ListPropertyPage() {
             </p>
           </div>
 
-          {/* DEFAULT RULES */}
           <div className="mt-8 space-y-3">
-
             {rules.map((rule) => (
               <div
                 key={rule}
@@ -1023,7 +1218,6 @@ export default function ListPropertyPage() {
             ))}
           </div>
 
-          {/* ADD RULE */}
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <input
               type="text"
@@ -1173,7 +1367,8 @@ export default function ListPropertyPage() {
           <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
             <p className="text-xs text-[#8A9390]">
-              Fields marked with <span className="text-red-500">*</span>{" "}
+              Fields marked with{" "}
+              <span className="text-red-500">*</span>{" "}
               are required.
             </p>
 
