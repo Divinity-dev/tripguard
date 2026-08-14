@@ -1,6 +1,7 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import PublicLayout from "../component/PublicLayout";
+import ReduxProvider from    "../redux/ReduxProvider";
 
 const geistSans = Geist({
 variable: "--font-geist-sans",
@@ -23,7 +24,14 @@ return (
 <html
 lang="en"
 className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-> <body className="min-h-screen"> <PublicLayout>
-{children} </PublicLayout> </body> </html>
+> <body className="min-h-screen"> 
+    
+<ReduxProvider>
+    <PublicLayout>
+  {children}
+  </PublicLayout>
+</ReduxProvider> 
+
+ </body> </html>
 );
 }
