@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useDispatch, useSelector } from "react-redux";
+import { useRouter } from "next/navigation";
 import { Eye, EyeOff, ShieldCheck } from "lucide-react";
+import {clearAuthError, } from "@/redux/slices/authSlice";
+import { registerUser } from "@/redux/actions/authActions";
 
 const RegisterPage = () => {
   const [formData, setFormData] = useState({
@@ -17,106 +21,80 @@ const RegisterPage = () => {
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  
   const [success, setSuccess] = useState("");
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
+  const dispatch = useDispatch();
+const router = useRouter();
 
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+const { loading, error } = useSelector(
+  (state) => state.auth
+);
 
-    setError("");
-    setSuccess("");
-  };
+ const handleChange = (e) => {
+  const { name, value } = e.target;
+
+  setFormData((prev) => ({
+    ...prev,
+    [name]: value,
+  }));
+
+  dispatch(clearAuthError());
+  setSuccess("");
+};
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    setError("");
-    setSuccess("");
+  setSuccess("");
 
-    const {
-      firstName,
-      lastName,
-      email,
-      phone,
-      password,
-      confirmPassword,
-      role,
-    } = formData;
+  const {
+    firstName,
+    lastName,
+    email,
+    phone,
+    password,
+    confirmPassword,
+    role,
+  } = formData;
 
-    if (
-      !firstName ||
-      !lastName ||
-      !email ||
-      !password
-    ) {
-      setError("Please fill in all required fields.");
-      return;
+  if (!firstName || !lastName || !email || !password) {
+    return;
+  }
+
+  if (password.length < 6) {
+    return;
+  }
+
+  if (password !== confirmPassword) {
+    return;
+  }
+
+  try {
+    const result = await dispatch(
+      registerUser({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.trim().toLowerCase(),
+        phone: phone.trim(),
+        password,
+        role,
+      })
+    ).unwrap();
+
+    const user = result.user;
+
+    if (user?.role === "admin") {
+      router.push("/admin");
+    } else if (user?.role === "owner") {
+      router.push("/owner/dashboard");
+    } else {
+      router.push("/dashboard");
     }
-
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/auth/register`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-          body: JSON.stringify({
-            firstName: firstName.trim(),
-            lastName: lastName.trim(),
-            email: email.trim().toLowerCase(),
-            phone: phone.trim(),
-            password,
-            role,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.message || "Unable to create your account."
-        );
-      }
-
-      setSuccess(
-        data.message || "Account created successfully."
-      );
-
-      // The backend already sets the authentication cookie.
-      // Redirect after successful registration.
-      window.location.href = "/dashboard";
-    } catch (error) {
-      console.error("Registration error:", error);
-
-      setError(
-        error.message ||
-          "Something went wrong. Please try again."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+  } catch (error) {
+    console.error("Registration error:", error);
+  }
+};
 
   return (
     <main className="min-h-screen bg-[#0b0f0e] text-white">

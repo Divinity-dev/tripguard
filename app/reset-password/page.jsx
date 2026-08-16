@@ -2,7 +2,15 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { useDispatch } from "react-redux";
+import {
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+} from "lucide-react";
+
+import { resetPassword } from "@/redux/actions/authActions";
 
 const ResetPasswordPage = () => {
   const [email, setEmail] = useState("");
@@ -19,6 +27,8 @@ const ResetPasswordPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  const dispatch = useDispatch();
 
   useEffect(() => {
     const resetEmail = sessionStorage.getItem(
@@ -45,95 +55,84 @@ const ResetPasswordPage = () => {
     setSuccess("");
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+ const handleSubmit = async (e) => {
+  e.preventDefault();
 
-    setError("");
-    setSuccess("");
+  setError("");
+  setSuccess("");
 
-    const {
-      newPassword,
-      confirmPassword,
-    } = formData;
+  const {
+    newPassword,
+    confirmPassword,
+  } = formData;
 
-    if (!newPassword || !confirmPassword) {
-      setError("Please enter and confirm your new password.");
-      return;
-    }
+  if (!newPassword || !confirmPassword) {
+    setError(
+      "Please enter and confirm your new password."
+    );
+    return;
+  }
 
-    if (newPassword.length < 6) {
-      setError(
-        "Your new password must be at least 6 characters."
-      );
-      return;
-    }
+  if (newPassword.length < 6) {
+    setError(
+      "Your new password must be at least 6 characters."
+    );
+    return;
+  }
 
-    if (newPassword !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
+  if (newPassword !== confirmPassword) {
+    setError("Passwords do not match.");
+    return;
+  }
 
-    if (!email) {
-      setError(
-        "Your password reset session is invalid. Please start again."
-      );
-      return;
-    }
+  if (!email) {
+    setError(
+      "Your password reset session is invalid. Please start again."
+    );
+    return;
+  }
 
-    try {
-      setLoading(true);
+  try {
+    setLoading(true);
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/auth/reset-password`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email,
-            newPassword,
-          }),
-        }
-      );
+    const data = await dispatch(
+      resetPassword(email, newPassword)
+    );
 
-      const data = await response.json();
+    /*
+     * Remove the reset email only after
+     * the backend confirms success.
+     */
+    sessionStorage.removeItem(
+      "tripguard_reset_email"
+    );
 
-      if (!response.ok) {
-        throw new Error(
-          data.message || "Unable to reset your password."
-        );
-      }
+    setSuccess(
+      data.message ||
+        "Your password has been reset successfully."
+    );
 
-      /*
-       * Remove the reset email once the password
-       * has been successfully changed.
-       */
-      sessionStorage.removeItem("tripguard_reset_email");
+    /*
+     * Give the user a moment to see
+     * the success message.
+     */
+    setTimeout(() => {
+      window.location.href = "/login";
+    }, 1800);
+  } catch (error) {
+    console.error(
+      "Reset password error:",
+      error
+    );
 
-      setSuccess(
-        data.message ||
-          "Your password has been reset successfully."
-      );
-
-      /*
-       * Give the user a moment to see the success
-       * message before returning to login.
-       */
-      setTimeout(() => {
-        window.location.href = "/login";
-      }, 1800);
-    } catch (error) {
-      console.error("Reset password error:", error);
-
-      setError(
-        error.message ||
-          "Something went wrong. Please try again."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+    setError(
+      error.message ||
+        "Something went wrong. Please try again."
+    );
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <main className="min-h-screen bg-[#0b0f0e] text-white">

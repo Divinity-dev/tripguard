@@ -22,6 +22,7 @@ Wallet,
 import AdminSidebar from "@/component/admin/AdminSidebar";
 import AdminPageHeader from "@/component/admin/AdminPageHeader";
 import AdminNavbar from "@/component/admin/AdminNavbar";
+import ProtectedRoute from "../../component/ProtectedRoute";
 
 const dashboardStats = [
 {
@@ -227,7 +228,9 @@ const maxRevenue = Math.max(
 ...bookingChart.map((item) => item.revenue)
 );
 
-return ( <div className="min-h-screen bg-gray-50"> <AdminSidebar />
+return (
+    <ProtectedRoute allowedRole="admin">
+   <div className="min-h-screen bg-gray-50"> <AdminSidebar />
 
 
   <div className="lg:ml-72">
@@ -788,7 +791,7 @@ return ( <div className="min-h-screen bg-gray-50"> <AdminSidebar />
     </main>
   </div>
 </div>
-
+</ProtectedRoute>
 
 );
 };

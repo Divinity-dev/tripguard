@@ -30,6 +30,18 @@ const authSlice = createSlice({
       state.message = null;
     },
 
+
+    // =========================
+    // Authentication Success
+    // =========================
+    forgotPasswordSuccess: (state, action) => {
+  state.loading = false;
+  state.error = null;
+  state.message =
+    action.payload?.message ||
+    "Password reset OTP sent successfully.";
+},
+
     // =========================
     // Authentication Success
     // =========================
@@ -154,6 +166,7 @@ export const {
   otpVerificationSuccess,
   resetPasswordSuccess,
   clearPasswordReset,
+  forgotPasswordSuccess,
   logout,
 } = authSlice.actions;
 

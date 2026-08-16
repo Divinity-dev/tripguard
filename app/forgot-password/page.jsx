@@ -2,7 +2,20 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, ShieldCheck, X } from "lucide-react";
+import { useDispatch, useSelector } from "react-redux";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  ShieldCheck,
+  X,
+} from "lucide-react";
+
+import {
+  requestPasswordReset,
+  verifyResetOtp,
+} from "@/redux/actions/authActions";
+
+import { clearAuthError } from "@/redux/slices/authSlice";
 
 const ForgotPasswordPage = () => {
   const [email, setEmail] = useState("");
@@ -15,17 +28,20 @@ const ForgotPasswordPage = () => {
   ]);
 
   const [showOtpModal, setShowOtpModal] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [verifying, setVerifying] = useState(false);
-  const [resending, setResending] = useState(false);
-
-  const [error, setError] = useState("");
   const [otpError, setOtpError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [verifying, setVerifying] = useState(false);
+const [resending, setResending] = useState(false);
+const [formError, setFormError] = useState("");
 
   const [timeLeft, setTimeLeft] = useState(600);
 
   const inputRefs = useRef([]);
+
+  const dispatch = useDispatch();
+
+const { loading, error } = useSelector(
+  (state) => state.auth
+);
 
   /*
    * Countdown timer
@@ -66,142 +82,106 @@ const ForgotPasswordPage = () => {
   /*
    * Handle email input
    */
-  const handleEmailChange = (e) => {
-    setEmail(e.target.value);
-    setError("");
-    setSuccess("");
-  };
+const handleEmailChange = (e) => {
+  setEmail(e.target.value);
+  dispatch(clearAuthError());
+  setFormError("");
+};
 
   /*
    * Send OTP
    */
-  const handleSendOtp = async (e) => {
-    e.preventDefault();
+/*
+ * Send OTP
+ */
+const handleSendOtp = async (e) => {
+  e.preventDefault();
 
-    setError("");
-    setSuccess("");
+  dispatch(clearAuthError());
+  setFormError("");
 
-    const trimmedEmail = email.trim().toLowerCase();
+  const trimmedEmail = email.trim().toLowerCase();
 
-    if (!trimmedEmail) {
-      setError("Please enter your email address.");
-      return;
-    }
+  if (!trimmedEmail) {
+    setFormError("Please enter your email address.");
+    return;
+  }
 
-    try {
-      setLoading(true);
+  try {
+    await dispatch(
+      requestPasswordReset(trimmedEmail)
+    );
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/auth/forgot-password`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email: trimmedEmail,
-          }),
-        }
-      );
+    setOtp(["", "", "", "", "", ""]);
+    setTimeLeft(600);
+    setShowOtpModal(true);
 
-      const data = await response.json();
+    setTimeout(() => {
+      inputRefs.current[0]?.focus();
+    }, 100);
+  } catch (error) {
+    console.error("Forgot password error:", error);
 
-      if (!response.ok) {
-        throw new Error(
-          data.message ||
-            "Unable to send password reset OTP."
-        );
-      }
-
-      setOtp([
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-      ]);
-
-      setTimeLeft(600);
-      setShowOtpModal(true);
-
-      setTimeout(() => {
-        inputRefs.current[0]?.focus();
-      }, 100);
-    } catch (error) {
-      console.error("Forgot password error:", error);
-
-      setError(
-        error.message ||
-          "Something went wrong. Please try again."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+    setFormError(
+      error.message ||
+        "Unable to process your password reset request."
+    );
+  }
+};
 
   /*
    * Handle OTP input
    */
-  const handleOtpChange = (index, value) => {
-    setOtpError("");
+ const handleOtpChange = (index, value) => {
+  setOtpError("");
 
-    /*
-     * Allow only numbers
-     */
-    const numericValue = value.replace(/\D/g, "");
+  const numericValue = value.replace(/\D/g, "");
 
-    if (!numericValue) {
-      setOtp((prev) => {
-        const updated = [...prev];
-        updated[index] = "";
-        return updated;
-      });
-
-      return;
-    }
-
-    /*
-     * Handle pasted/multiple digits
-     */
-    if (numericValue.length > 1) {
-      const digits = numericValue.slice(0, 6).split("");
-
-      setOtp((prev) => {
-        const updated = [...prev];
-
-        digits.forEach((digit, digitIndex) => {
-          if (index + digitIndex < 6) {
-            updated[index + digitIndex] = digit;
-          }
-        });
-
-        return updated;
-      });
-
-      const nextIndex = Math.min(
-        index + digits.length,
-        5
-      );
-
-      inputRefs.current[nextIndex]?.focus();
-
-      return;
-    }
-
+  // Clear current box
+  if (!numericValue) {
     setOtp((prev) => {
       const updated = [...prev];
-      updated[index] = numericValue;
+      updated[index] = "";
       return updated;
     });
 
-    /*
-     * Move to next box
-     */
-    if (index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
-  };
+    return;
+  }
+
+  // Handle pasted OTP
+ if (numericValue.length > 1) {
+  const digits = numericValue.slice(0, 6).split("");
+
+  setOtp((prev) => {
+    const updated = ["", "", "", "", "", ""];
+
+    digits.forEach((digit, digitIndex) => {
+      updated[digitIndex] = digit;
+    });
+
+    return updated;
+  });
+
+  // Focus the last filled box
+  const nextIndex = Math.min(digits.length - 1, 5);
+
+  inputRefs.current[nextIndex]?.focus();
+
+  return;
+}
+
+  // Normal single-digit input
+  setOtp((prev) => {
+    const updated = [...prev];
+    updated[index] = numericValue;
+    return updated;
+  });
+
+  // Move to next box
+  if (index < 5) {
+    inputRefs.current[index + 1]?.focus();
+  }
+};
 
   /*
    * Handle OTP keyboard navigation
@@ -234,135 +214,93 @@ const ForgotPasswordPage = () => {
    * Verify OTP
    */
   const handleVerifyOtp = async () => {
-    setOtpError("");
+  setOtpError("");
 
-    const otpValue = otp.join("");
+  const otpValue = otp.join("");
 
-    if (otpValue.length !== 6) {
-      setOtpError("Please enter the complete 6-digit OTP.");
-      return;
-    }
+  if (otpValue.length !== 6) {
+    setOtpError(
+      "Please enter the complete 6-digit OTP."
+    );
+    return;
+  }
 
-    if (timeLeft <= 0) {
-      setOtpError(
-        "This OTP has expired. Please request a new one."
-      );
-      return;
-    }
+  if (timeLeft <= 0) {
+    setOtpError(
+      "This OTP has expired. Please request a new one."
+    );
+    return;
+  }
 
-    try {
-      setVerifying(true);
+  try {
+    setVerifying(true);
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/auth/verify-reset-otp`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email: email.trim().toLowerCase(),
-            otp: otpValue,
-          }),
-        }
-      );
+    const trimmedEmail = email.trim().toLowerCase();
 
-      const data = await response.json();
+    await dispatch(
+      verifyResetOtp(trimmedEmail, otpValue)
+    );
 
-      if (!response.ok) {
-        throw new Error(
-          data.message || "Invalid OTP."
-        );
-      }
+    /*
+     * Keep email available for the reset-password page.
+     */
+    sessionStorage.setItem(
+      "tripguard_reset_email",
+      trimmedEmail
+    );
 
-      /*
-       * Keep the email in sessionStorage so the
-       * reset-password page can use it.
-       */
-      sessionStorage.setItem(
-        "tripguard_reset_email",
-        email.trim().toLowerCase()
-      );
+    setShowOtpModal(false);
 
-      setShowOtpModal(false);
+    window.location.href = "/reset-password";
+  } catch (error) {
+    console.error(
+      "OTP verification error:",
+      error
+    );
 
-      /*
-       * Move to reset-password page
-       */
-      window.location.href = "/reset-password";
-    } catch (error) {
-      console.error(
-        "OTP verification error:",
-        error
-      );
-
-      setOtpError(
-        error.message ||
-          "Unable to verify OTP. Please try again."
-      );
-    } finally {
-      setVerifying(false);
-    }
-  };
+    setOtpError(
+      error.message ||
+        "Unable to verify OTP. Please try again."
+    );
+  } finally {
+    setVerifying(false);
+  }
+};
 
   /*
    * Resend OTP
    */
-  const handleResendOtp = async () => {
-    setOtpError("");
-    setResending(true);
+ const handleResendOtp = async () => {
+  setOtpError("");
+  setResending(true);
 
-    try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/auth/forgot-password`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email: email.trim().toLowerCase(),
-          }),
-        }
-      );
+  try {
+    const trimmedEmail = email.trim().toLowerCase();
 
-      const data = await response.json();
+    await dispatch(
+      requestPasswordReset(trimmedEmail)
+    );
 
-      if (!response.ok) {
-        throw new Error(
-          data.message ||
-            "Unable to resend OTP."
-        );
-      }
+    setOtp(["", "", "", "", "", ""]);
+    setTimeLeft(600);
 
-      setOtp([
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-      ]);
+    setTimeout(() => {
+      inputRefs.current[0]?.focus();
+    }, 100);
+  } catch (error) {
+    console.error(
+      "Resend OTP error:",
+      error
+    );
 
-      setTimeLeft(600);
-
-      setTimeout(() => {
-        inputRefs.current[0]?.focus();
-      }, 100);
-    } catch (error) {
-      console.error(
-        "Resend OTP error:",
-        error
-      );
-
-      setOtpError(
-        error.message ||
-          "Unable to resend OTP."
-      );
-    } finally {
-      setResending(false);
-    }
-  };
+    setOtpError(
+      error.message ||
+        "Unable to resend OTP."
+    );
+  } finally {
+    setResending(false);
+  }
+};
 
   /*
    * Close OTP modal
@@ -520,18 +458,11 @@ const ForgotPasswordPage = () => {
             </div>
 
             {/* Error */}
-            {error && (
-              <div className="mb-6 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-                {error}
-              </div>
-            )}
-
-            {/* Success */}
-            {success && (
-              <div className="mb-6 rounded-xl border border-[#63E6BE]/20 bg-[#63E6BE]/10 px-4 py-3 text-sm text-[#63E6BE]">
-                {success}
-              </div>
-            )}
+           {(formError || error) && (
+  <div className="mb-6 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+    {formError || error}
+  </div>
+)}
 
             {/* Form */}
             <form

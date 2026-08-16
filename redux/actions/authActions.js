@@ -9,7 +9,10 @@ import {
   setResetEmail,
   otpVerificationSuccess,
   resetPasswordSuccess,
+  forgotPasswordSuccess
 } from "../slices/authSlice";
+
+
 
 // =========================
 // Register
@@ -121,9 +124,11 @@ export const requestPasswordReset =
 
       dispatch(setResetEmail(email));
 
-      dispatch(authSuccess({
-        message: response.data.message,
-      }));
+      dispatch(
+        forgotPasswordSuccess({
+          message: response.data.message,
+        })
+      );
 
       return response.data;
     } catch (error) {

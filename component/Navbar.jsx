@@ -4,12 +4,23 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X, ShieldCheck } from "lucide-react";
+import { useSelector } from "react-redux";
 
 const Navbar = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
   const pathname = usePathname();
+  const { user, isAuthenticated } = useSelector(
+  (state) => state.auth
+);
+
+const dashboardRoute =
+  user?.role === "admin"
+    ? "/admin"
+    : user?.role === "owner"
+    ? "/owner"
+    : "/traveller";
 
   // Only the homepage can have a transparent navbar
   const isHomePage = pathname === "/";
@@ -72,12 +83,14 @@ const Navbar = () => {
             Explore stays
           </Link>
 
-            <Link
-            href="/owner"
-            className="text-sm font-medium text-white/80 transition hover:text-white"
-          >
-            List your property
-          </Link>
+            {isAuthenticated && user && (
+  <Link
+    href={dashboardRoute}
+    className="text-sm font-medium text-white/80 transition hover:text-white"
+  >
+    Dashboard
+  </Link>
+)}
 
           <Link
             href="/about"
@@ -141,13 +154,15 @@ const Navbar = () => {
               Explore stays
             </Link>
 
-              <Link
-              href="/owner"
-              onClick={() => setMenuOpen(false)}
-              className="rounded-xl px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10"
-            >
-              List your property
-            </Link>
+        {isAuthenticated && user && (
+  <Link
+    href={dashboardRoute}
+    onClick={() => setMenuOpen(false)}
+    className="rounded-xl px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10"
+  >
+    Dashboard
+  </Link>
+)}
 
             <Link
               href="/about"

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import ProtectedRoute from "../../component/ProtectedRoute";
 
 export default function TravellerDashboard() {
   const [bookingStatus, setBookingStatus] = useState("confirmed");
@@ -41,6 +42,7 @@ export default function TravellerDashboard() {
   };
 
   return (
+     <ProtectedRoute allowedRole="user">
     <main className="min-h-screen bg-[#f7f9f8] text-gray-900">
       {/* Header */}
       <section className="border-b border-gray-200 bg-white">
@@ -368,6 +370,7 @@ export default function TravellerDashboard() {
         </section>
       </div>
     </main>
+    </ProtectedRoute>
   );
 }
 
