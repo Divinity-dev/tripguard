@@ -1,29 +1,40 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import PublicLayout from "../component/PublicLayout";
+import ReduxProvider from "../redux/ReduxProvider";
+import Providers from "./providers";
 
 const geistSans = Geist({
-variable: "--font-geist-sans",
-subsets: ["latin"],
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
 });
 
 const geistMono = Geist_Mono({
-variable: "--font-geist-mono",
-subsets: ["latin"],
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
 });
 
 export const metadata = {
-title: "TripGuard",
-description:
-"Book safe and comfortable accommodation with TripGuard.",
+  title: "TripGuard",
+  description:
+    "Book safe and comfortable accommodation with TripGuard.",
 };
 
 export default function RootLayout({ children }) {
-return (
-<html
-lang="en"
-className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-> <body className="min-h-screen"> <PublicLayout>
-{children} </PublicLayout> </body> </html>
-);
+  return (
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+    >
+      <body className="min-h-screen">
+        <Providers>
+        <ReduxProvider>
+          <PublicLayout>
+            {children}
+          </PublicLayout>
+        </ReduxProvider>
+        </Providers>
+      </body>
+    </html>
+  );
 }

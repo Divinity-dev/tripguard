@@ -3,6 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { getStatesData } from "nigeria-state-lga-data";
 import BookStayModal from "./BookStayModal";
 import {
@@ -54,11 +56,17 @@ const reviews = [
 ];
 
 const HomePage = () => {
+  const router = useRouter();
+
   const [reviewStart, setReviewStart] = useState(0);
+
   const [selectedState, setSelectedState] = useState("");
   const [selectedCity, setSelectedCity] = useState("");
   const [selectedLga, setSelectedLga] = useState("");
+  const [selectedPriceRange, setSelectedPriceRange] = useState("");
+
   const [bookModalOpen, setBookModalOpen] = useState(false);
+  const [selectedAccommodation, setSelectedAccommodation] = useState(null);
 
   const selectedStateRecord = nigeriaStatesData.find(
     (countryState) => countryState.name === selectedState
@@ -67,9 +75,69 @@ const HomePage = () => {
   const cityOptions = selectedStateRecord?.towns ?? [];
   const lgaOptions = selectedStateRecord?.lgas ?? [];
 
+  const handleSearch = () => {
+    const params = new URLSearchParams();
+
+    if (selectedState) {
+      params.set("state", selectedState);
+    }
+
+    if (selectedCity) {
+      params.set("city", selectedCity);
+    }
+
+    if (selectedLga) {
+      params.set("lga", selectedLga);
+    }
+
+    if (selectedPriceRange) {
+      params.set("price", selectedPriceRange);
+    }
+
+    const queryString = params.toString();
+
+    router.push(
+      queryString
+        ? `/accommodations?${queryString}`
+        : "/accommodations"
+    );
+  };
+
   const handleBookSubmit = () => {
     setBookModalOpen(false);
+    setSelectedAccommodation(null);
   };
+  const API_URL =
+    process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+
+  const fetchAccommodations = async () => {
+    const response = await fetch(`${API_URL}/accommodations`);
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch accommodations");
+    }
+
+    const data = await response.json();
+
+    if (!data.success) {
+      throw new Error(data.message || "Failed to fetch accommodations");
+    }
+
+    return data.accommodations;
+  };
+
+  const {
+    data: accommodations = [],
+    isLoading: accommodationsLoading,
+    isError: accommodationsError,
+    error: accommodationsErrorDetails,
+  } = useQuery({
+    queryKey: ["accommodations"],
+    queryFn: fetchAccommodations,
+  });
+
+  console.log("HOME ACCOMMODATIONS:", accommodations);
+  console.log("HOME ACCOMMODATIONS COUNT:", accommodations.length);
 
   return (
     <main className="min-h-screen bg-[#F7F6F0] text-[#172322]">
@@ -175,7 +243,7 @@ const HomePage = () => {
                             City
                           </option>
 
-                          {cityOptions.map((city) => (
+                          {[...new Set(cityOptions)].map((city) => (
                             <option key={city} value={city}>
                               {city}
                             </option>
@@ -197,7 +265,7 @@ const HomePage = () => {
                             LGA
                           </option>
 
-                          {lgaOptions.map((lga) => (
+                          {[...new Set(lgaOptions)].map((lga) => (
                             <option key={lga} value={lga}>
                               {lga}
                             </option>
@@ -229,11 +297,12 @@ const HomePage = () => {
 
                     <div className="relative">
                       <select
-                        defaultValue=""
+                        value={selectedPriceRange}
+                        onChange={(e) => setSelectedPriceRange(e.target.value)}
                         className="h-12 w-full appearance-none rounded-xl border border-[#E2E3DD] bg-white px-3 pr-9 text-sm font-medium text-[#172322] outline-none transition focus:border-[#397A69] focus:ring-2 focus:ring-[#397A69]/10"
                       >
-                        <option value="" disabled>
-                          Select price range
+                        <option value="">
+                          Any price
                         </option>
 
                         <option value="10000-50000">
@@ -268,6 +337,7 @@ const HomePage = () => {
                   {/* SEARCH BUTTON */}
                   <button
                     type="button"
+                    onClick={handleSearch}
                     className="flex min-h-[90px] items-center justify-center gap-2 rounded-2xl bg-[#173C37] px-8 font-semibold text-white transition hover:bg-[#23584E] lg:min-h-full"
                   >
                     <Search className="h-5 w-5" />
@@ -338,414 +408,420 @@ const HomePage = () => {
 
       {/* FEATURED STAYS */}
       {/* FEATURED STAYS */}
-<section id="stays" className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
-  <div className="flex items-end justify-between">
-    <div>
-      <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#397A69]">
-        Popular right now
-      </p>
+      <section id="stays" className="mx-auto max-w-7xl px-5 py-20 lg:px-8">
+        <div className="flex items-end justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#397A69]">
+              Popular right now
+            </p>
 
-      <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-        Places worth staying.
-      </h2>
-    </div>
-
-    <Link
-      href="/accommodations"
-      className="hidden items-center gap-2 text-sm font-semibold text-[#173C37] transition hover:text-[#397A69] sm:flex"
-    >
-      Explore all
-      <ArrowRight className="h-4 w-4" />
-    </Link>
-  </div>
-
-  <div className="mt-10 grid gap-x-6 gap-y-10 md:grid-cols-3">
-    {[
-      {
-        id: "the-meridian-house",
-        name: "The Meridian House",
-        location: "Victoria Island, Lagos",
-        price: 185000,
-        rating: 4.9,
-        reviews: 128,
-        type: "Luxury Hotel",
-        guests: 2,
-        image:
-          "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=90",
-        amenities: ["Wi-Fi", "Parking", "Restaurant", "Pool"],
-        description:
-          "A refined stay in the heart of Victoria Island with contemporary comfort and a peaceful atmosphere.",
-      },
-      {
-        id: "palm-court-residence",
-        name: "Palm Court Residence",
-        location: "Lekki Phase 1, Lagos",
-        price: 95000,
-        rating: 4.8,
-        reviews: 94,
-        type: "Serviced Apartment",
-        guests: 2,
-        image:
-          "https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1200&q=90",
-        amenities: ["Wi-Fi", "Parking", "Kitchen", "Housekeeping"],
-        description:
-          "A stylish and comfortable serviced apartment close to some of Lagos's most popular destinations.",
-      },
-      {
-        id: "cedar-view-suites",
-        name: "Cedar View Suites",
-        location: "Wuse 2, Abuja",
-        price: 120000,
-        rating: 4.9,
-        reviews: 76,
-        type: "Boutique Hotel",
-        guests: 2,
-        image:
-          "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=90",
-        amenities: ["Wi-Fi", "Parking", "Restaurant", "Pool"],
-        description:
-          "A calm and sophisticated stay in Wuse 2, designed for travellers who value comfort and convenience.",
-      },
-    ].map((stay) => (
-      <article
-        key={stay.id}
-        className="group overflow-hidden rounded-[24px] border border-[#E4E3DC] bg-white transition duration-300 hover:-translate-y-1 hover:shadow-xl"
-      >
-        {/* IMAGE */}
-        <div className="relative aspect-[4/3] overflow-hidden">
-          <Link href={`/accommodations/${stay.id}`}>
-            <Image
-              src={stay.image}
-              alt={stay.name}
-              fill
-              className="object-cover transition duration-700 group-hover:scale-105"
-            />
-          </Link>
-
-          {/* TYPE */}
-          <div className="absolute left-4 top-4">
-            <span className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-bold text-[#173C37] shadow-sm">
-              {stay.type}
-            </span>
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
+              Places worth staying.
+            </h2>
           </div>
 
-          {/* SAVE */}
-          <button
-            type="button"
-            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/95 shadow-sm transition hover:scale-105"
-            aria-label="Save accommodation"
+          <Link
+            href="/accommodations"
+            className="hidden items-center gap-2 text-sm font-semibold text-[#173C37] transition hover:text-[#397A69] sm:flex"
           >
-            <Heart className="h-5 w-5 text-[#173C37]" />
-          </button>
+            Explore all
+            <ArrowRight className="h-4 w-4" />
+          </Link>
         </div>
 
-        {/* CARD CONTENT */}
-        <div className="p-5">
-          <div className="flex items-start justify-between gap-4">
-            <Link
-              href={`/accommodations/${stay.id}`}
-              className="min-w-0"
-            >
-              <h3 className="truncate text-lg font-semibold text-[#172322] transition group-hover:text-[#397A69]">
-                {stay.name}
-              </h3>
+        <div className="mt-10 grid gap-x-6 gap-y-10 md:grid-cols-3">
+          {accommodationsLoading ? (
+            <div className="md:col-span-3 flex min-h-[300px] items-center justify-center">
+              <div className="text-center">
+                <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-[#DCEAE5] border-t-[#173C37]" />
 
-              <div className="mt-2 flex items-center gap-1.5 text-sm text-[#7A8581]">
-                <MapPin className="h-3.5 w-3.5 text-[#397A69]" />
-                {stay.location}
+                <p className="mt-4 text-sm text-[#75817D]">
+                  Loading accommodations...
+                </p>
               </div>
-            </Link>
-
-            <div className="flex shrink-0 items-center gap-1 text-sm font-semibold text-[#173C37]">
-              <Star className="h-4 w-4 fill-[#F3C95D] text-[#F3C95D]" />
-              {stay.rating}
             </div>
-          </div>
+          ) : accommodationsError ? (
+            <div className="md:col-span-3 rounded-[24px] border border-red-100 bg-red-50 p-8 text-center">
+              <p className="font-semibold text-red-700">
+                Unable to load accommodations
+              </p>
 
-          {/* DESCRIPTION */}
-          <p className="mt-4 line-clamp-2 text-sm leading-6 text-[#75817D]">
-            {stay.description}
-          </p>
+              <p className="mt-2 text-sm text-red-600">
+                {accommodationsErrorDetails?.message ||
+                  "Something went wrong while fetching accommodations."}
+              </p>
+            </div>
+          ) : accommodations.length === 0 ? (
+            <div className="md:col-span-3 rounded-[24px] border border-[#E4E3DC] bg-white p-8 text-center">
+              <p className="font-semibold text-[#172322]">
+                No accommodations available yet.
+              </p>
 
-          {/* AMENITIES */}
-          <div className="mt-5 flex flex-wrap gap-2">
-            {stay.amenities.slice(0, 3).map((amenity) => (
-              <span
-                key={amenity}
-                className="rounded-lg bg-[#F3F5F1] px-2.5 py-1.5 text-[11px] font-medium text-[#596661]"
+              <p className="mt-2 text-sm text-[#75817D]">
+                Check back soon for available stays.
+              </p>
+            </div>
+          ) : (
+            accommodations.slice(0, 3).map((stay) => {
+              const image = stay.images?.[0];
+
+              const location = [
+                stay.location?.city,
+                stay.location?.state,
+              ]
+                .filter(Boolean)
+                .join(", ");
+
+              return (
+                <article
+                  key={stay._id}
+                  className="group overflow-hidden rounded-[24px] border border-[#E4E3DC] bg-white transition duration-300 hover:-translate-y-1 hover:shadow-xl"
+                >
+                  {/* IMAGE */}
+                  <div className="relative aspect-[4/3] overflow-hidden">
+                    <Link href={`/accommodations/${stay.slug}`}>
+                      {image ? (
+                        <Image
+                          src={image}
+                          alt={stay.name}
+                          fill
+                          className="object-cover transition duration-700 group-hover:scale-105"
+                        />
+                      ) : (
+                        <div className="h-full w-full bg-[#E8EEEB]" />
+                      )}
+                    </Link>
+
+                    {/* TYPE */}
+                    <div className="absolute left-4 top-4">
+                      <span className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-bold text-[#173C37] shadow-sm">
+                        {stay.type}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* CARD CONTENT */}
+                  <div className="p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <Link
+                        href={`/accommodations/${stay.slug}`}
+                        className="min-w-0"
+                      >
+                        <h3 className="truncate text-lg font-semibold text-[#172322] transition group-hover:text-[#397A69]">
+                          {stay.name}
+                        </h3>
+
+                        <div className="mt-2 flex items-center gap-1.5 text-sm text-[#7A8581]">
+                          <MapPin className="h-3.5 w-3.5 text-[#397A69]" />
+
+                          {location || "Location unavailable"}
+                        </div>
+                      </Link>
+
+                      <div className="flex shrink-0 items-center gap-1 text-sm font-semibold text-[#173C37]">
+                        <Star className="h-4 w-4 fill-[#F3C95D] text-[#F3C95D]" />
+
+                        {Number(stay.averageRating || 0).toFixed(1)}
+                      </div>
+                    </div>
+
+                    {/* DESCRIPTION */}
+                    <p className="mt-4 line-clamp-2 text-sm leading-6 text-[#75817D]">
+                      {stay.description}
+                    </p>
+
+                    {/* AMENITIES */}
+                    <div className="mt-5 flex flex-wrap gap-2">
+                      {stay.amenities?.slice(0, 3).map((amenity) => (
+                        <span
+                          key={amenity}
+                          className="rounded-lg bg-[#F3F5F1] px-2.5 py-1.5 text-[11px] font-medium text-[#596661]"
+                        >
+                          {amenity}
+                        </span>
+                      ))}
+
+                      {stay.amenities?.length > 3 && (
+                        <span className="rounded-lg bg-[#F3F5F1] px-2.5 py-1.5 text-[11px] font-medium text-[#596661]">
+                          +{stay.amenities.length - 3}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* BOTTOM */}
+                    <div className="mt-5 flex items-end justify-between border-t border-[#ECEBE5] pt-5">
+                      <div>
+                        <span className="text-xl font-bold text-[#173C37]">
+                          ₦{Number(stay.pricePerNight).toLocaleString()}
+                        </span>
+
+                        <span className="text-xs text-[#7A8581]">
+                          {" "}
+                          / night
+                        </span>
+
+                        <div className="mt-1 flex items-center gap-1.5 text-xs text-[#8A9390]">
+                          <Users className="h-3.5 w-3.5" />
+
+                          Up to {stay.maxGuests} guests
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <Link
+                          href={`/accommodations/${stay.slug}`}
+                          className="rounded-xl bg-[#173C37] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#23584E]"
+                        >
+                          View stay
+                        </Link>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedAccommodation({
+                              ...stay,
+                              id: stay._id,
+                              image: stay.images?.[0],
+                              location: [
+                                stay.location?.city,
+                                stay.location?.state,
+                              ]
+                                .filter(Boolean)
+                                .join(", "),
+                              price: stay.pricePerNight,
+                              guests: stay.maxGuests,
+                              rating: stay.averageRating,
+                              reviews: stay.totalReviews,
+                            });
+
+                            setBookModalOpen(true);
+                          }}
+                          className="rounded-xl bg-[#173C37] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#23584E]"
+                        >
+                          Book
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* REVIEWS */}
+                    <div className="mt-4 flex items-center gap-1.5 text-xs text-[#7A8581]">
+                      <Star className="h-3.5 w-3.5 fill-[#F3C95D] text-[#F3C95D]" />
+
+                      <span className="font-semibold text-[#596661]">
+                        {Number(stay.averageRating || 0).toFixed(1)}
+                      </span>
+
+                      <span>·</span>
+
+                      <span>{stay.totalReviews || 0} reviews</span>
+                    </div>
+                  </div>
+                </article>
+              );
+            })
+          )}
+        </div>
+
+        {/* MOBILE EXPLORE LINK */}
+        <div className="mt-8 flex justify-center sm:hidden">
+          <Link
+            href="/accommodations"
+            className="flex items-center gap-2 text-sm font-semibold text-[#173C37]"
+          >
+            Explore all stays
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </section>
+
+      {/* CUSTOMER REVIEWS */}
+
+      <section className="bg-[#F7F6F0] py-24">
+        <div className="mx-auto max-w-7xl px-5 lg:px-8">
+
+
+          {/* SECTION HEADER */}
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+            <div className="max-w-2xl">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#397A69]">
+                Guest experiences
+              </p>
+
+              <h2 className="mt-3 text-3xl font-semibold tracking-tight text-[#172322] sm:text-4xl lg:text-5xl">
+                Stories from happy travellers.
+              </h2>
+
+              <p className="mt-4 max-w-xl text-base leading-7 text-[#75817D]">
+                Discover why travellers choose TripGuard when they want a
+                comfortable stay and the reassurance of knowing someone has
+                their back.
+              </p>
+            </div>
+
+            {/* RATING + NAVIGATION */}
+            <div className="flex items-center gap-3">
+              {/* RATING */}
+              <div className="flex items-center gap-3 rounded-2xl border border-[#E2E1DA] bg-white px-5 py-4 shadow-sm">
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#E1F5ED]">
+                  <Star className="h-5 w-5 fill-[#F3C95D] text-[#F3C95D]" />
+                </div>
+
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-bold text-[#173C37]">
+                      4.9
+                    </span>
+
+                    <div className="flex items-center gap-0.5">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className="h-3.5 w-3.5 fill-[#F3C95D] text-[#F3C95D]"
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <p className="mt-0.5 text-xs text-[#7A8581]">
+                    Loved by our guests
+                  </p>
+                </div>
+              </div>
+
+              {/* NAVIGATION BUTTONS */}
+              <button
+                type="button"
+                onClick={() =>
+                  setReviewStart((current) => Math.max(current - 1, 0))
+                }
+                disabled={reviewStart === 0}
+                className="flex h-12 w-12 items-center justify-center rounded-full border border-[#DCDDD6] bg-white text-[#173C37] shadow-sm transition hover:bg-[#173C37] hover:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-[#173C37]"
+                aria-label="Previous reviews"
               >
-                {amenity}
-              </span>
-            ))}
+                <ArrowLeft className="h-5 w-5" />
+              </button>
 
-            {stay.amenities.length > 3 && (
-              <span className="rounded-lg bg-[#F3F5F1] px-2.5 py-1.5 text-[11px] font-medium text-[#596661]">
-                +{stay.amenities.length - 3}
-              </span>
-            )}
-          </div>
-
-          {/* BOTTOM */}
-          <div className="mt-5 flex items-end justify-between border-t border-[#ECEBE5] pt-5">
-            <div>
-              <span className="text-xl font-bold text-[#173C37]">
-                ₦{stay.price.toLocaleString()}
-              </span>
-
-              <span className="text-xs text-[#7A8581]">
-                {" "}
-                / night
-              </span>
-
-              <div className="mt-1 flex items-center gap-1.5 text-xs text-[#8A9390]">
-                <Users className="h-3.5 w-3.5" />
-                Up to {stay.guests} guests
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <Link
-              href={`/accommodations/${stay.id}`}
-              className="rounded-xl bg-[#173C37] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#23584E]"
-            >
-              View stay
-            </Link>
-            <button
-             type="button"
-             onClick={() => setBookModalOpen(true)}
-             className="rounded-xl bg-[#173C37] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#23584E]"
-            >
-              Book
-            </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setReviewStart((current) =>
+                    Math.min(current + 1, reviews.length - 3)
+                  )
+                }
+                disabled={reviewStart === reviews.length - 3}
+                className="flex h-12 w-12 items-center justify-center rounded-full border border-[#173C37] bg-[#173C37] text-white shadow-sm transition hover:bg-[#23584E] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[#173C37]"
+                aria-label="Next reviews"
+              >
+                <ArrowRight className="h-5 w-5" />
+              </button>
             </div>
           </div>
 
           {/* REVIEWS */}
-          <div className="mt-4 flex items-center gap-1.5 text-xs text-[#7A8581]">
-            <Star className="h-3.5 w-3.5 fill-[#F3C95D] text-[#F3C95D]" />
+          <div className="mt-14 overflow-hidden">
+            <div
+              className="flex gap-6 transition-transform duration-500 ease-out"
+              style={{
+                transform: `translateX(calc(-${reviewStart * (100 / 3)}% - ${reviewStart * 8
+                  }px))`,
+              }}
+            >
+              {reviews.map((review, index) => (
+                <article
+                  key={review.name}
+                  className={`group flex min-w-full flex-col rounded-[28px] border border-[#E4E3DC] p-7 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl sm:min-w-[calc(50%-12px)] lg:min-w-[calc(33.333%-16px)] sm:p-8 ${index === 1
+                      ? "bg-[#173C37] text-white"
+                      : "bg-white"
+                    }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className="h-4 w-4 fill-[#F3C95D] text-[#F3C95D]"
+                        />
+                      ))}
+                    </div>
 
-            <span className="font-semibold text-[#596661]">
-              {stay.rating}
-            </span>
+                    <span
+                      className={`text-3xl font-serif leading-none ${index === 1
+                          ? "text-white/15"
+                          : "text-[#DCEAE5]"
+                        }`}
+                    >
+                      “
+                    </span>
+                  </div>
 
-            <span>·</span>
+                  <p
+                    className={`mt-6 flex-1 text-[15px] leading-7 ${index === 1
+                        ? "text-white/75"
+                        : "text-[#46534F]"
+                      }`}
+                  >
+                    “{review.text}”
+                  </p>
 
-            <span>{stay.reviews} reviews</span>
+                  <div
+                    className={`mt-8 flex items-center gap-3 border-t pt-6 ${index === 1
+                        ? "border-white/10"
+                        : "border-[#ECEBE5]"
+                      }`}
+                  >
+                    <div
+                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${index === 1
+                          ? "bg-[#63E6BE] text-[#173C37]"
+                          : index === 2
+                            ? "bg-[#E1F5ED] text-[#277765]"
+                            : "bg-[#173C37] text-[#63E6BE]"
+                        }`}
+                    >
+                      {review.initials}
+                    </div>
+
+                    <div>
+                      <p
+                        className={`font-semibold ${index === 1
+                            ? "text-white"
+                            : "text-[#172322]"
+                          }`}
+                      >
+                        {review.name}
+                      </p>
+
+                      <p
+                        className={`mt-0.5 text-xs ${index === 1
+                            ? "text-white/50"
+                            : "text-[#7A8581]"
+                          }`}
+                      >
+                        {review.location}
+                      </p>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
           </div>
-        </div>
-      </article>
-    ))}
-  </div>
 
-  {/* MOBILE EXPLORE LINK */}
-  <div className="mt-8 flex justify-center sm:hidden">
-    <Link
-      href="/accommodations"
-      className="flex items-center gap-2 text-sm font-semibold text-[#173C37]"
-    >
-      Explore all stays
-      <ArrowRight className="h-4 w-4" />
-    </Link>
-  </div>
-</section>
-
-      {/* CUSTOMER REVIEWS */}
-
-<section className="bg-[#F7F6F0] py-24">
-  <div className="mx-auto max-w-7xl px-5 lg:px-8">
-
-
-{/* SECTION HEADER */}
-<div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-  <div className="max-w-2xl">
-    <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#397A69]">
-      Guest experiences
-    </p>
-
-    <h2 className="mt-3 text-3xl font-semibold tracking-tight text-[#172322] sm:text-4xl lg:text-5xl">
-      Stories from happy travellers.
-    </h2>
-
-    <p className="mt-4 max-w-xl text-base leading-7 text-[#75817D]">
-      Discover why travellers choose TripGuard when they want a
-      comfortable stay and the reassurance of knowing someone has
-      their back.
-    </p>
-  </div>
-
-  {/* RATING + NAVIGATION */}
-  <div className="flex items-center gap-3">
-    {/* RATING */}
-    <div className="flex items-center gap-3 rounded-2xl border border-[#E2E1DA] bg-white px-5 py-4 shadow-sm">
-      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#E1F5ED]">
-        <Star className="h-5 w-5 fill-[#F3C95D] text-[#F3C95D]" />
-      </div>
-
-      <div>
-        <div className="flex items-center gap-2">
-          <span className="text-lg font-bold text-[#173C37]">
-            4.9
-          </span>
-
-          <div className="flex items-center gap-0.5">
-            {[1, 2, 3, 4, 5].map((star) => (
-              <Star
-                key={star}
-                className="h-3.5 w-3.5 fill-[#F3C95D] text-[#F3C95D]"
+          {/* SLIDE INDICATORS */}
+          <div className="mt-8 flex justify-center gap-2">
+            {reviews.slice(0, reviews.length - 2).map((_, index) => (
+              <button
+                key={index}
+                type="button"
+                onClick={() => setReviewStart(index)}
+                aria-label={`Go to review group ${index + 1}`}
+                className={`h-2 rounded-full transition-all duration-300 ${reviewStart === index
+                    ? "w-7 bg-[#173C37]"
+                    : "w-2 bg-[#CBD3CF]"
+                  }`}
               />
             ))}
           </div>
         </div>
-
-        <p className="mt-0.5 text-xs text-[#7A8581]">
-          Loved by our guests
-        </p>
-      </div>
-    </div>
-
-    {/* NAVIGATION BUTTONS */}
-    <button
-      type="button"
-      onClick={() =>
-        setReviewStart((current) => Math.max(current - 1, 0))
-      }
-      disabled={reviewStart === 0}
-      className="flex h-12 w-12 items-center justify-center rounded-full border border-[#DCDDD6] bg-white text-[#173C37] shadow-sm transition hover:bg-[#173C37] hover:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-[#173C37]"
-      aria-label="Previous reviews"
-    >
-      <ArrowLeft className="h-5 w-5" />
-    </button>
-
-    <button
-      type="button"
-      onClick={() =>
-        setReviewStart((current) =>
-          Math.min(current + 1, reviews.length - 3)
-        )
-      }
-      disabled={reviewStart === reviews.length - 3}
-      className="flex h-12 w-12 items-center justify-center rounded-full border border-[#173C37] bg-[#173C37] text-white shadow-sm transition hover:bg-[#23584E] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[#173C37]"
-      aria-label="Next reviews"
-    >
-      <ArrowRight className="h-5 w-5" />
-    </button>
-  </div>
-</div>
-
-{/* REVIEWS */}
-<div className="mt-14 overflow-hidden">
-  <div
-    className="flex gap-6 transition-transform duration-500 ease-out"
-    style={{
-      transform: `translateX(calc(-${reviewStart * (100 / 3)}% - ${
-        reviewStart * 8
-      }px))`,
-    }}
-  >
-    {reviews.map((review, index) => (
-      <article
-        key={review.name}
-        className={`group flex min-w-full flex-col rounded-[28px] border border-[#E4E3DC] p-7 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl sm:min-w-[calc(50%-12px)] lg:min-w-[calc(33.333%-16px)] sm:p-8 ${
-          index === 1
-            ? "bg-[#173C37] text-white"
-            : "bg-white"
-        }`}
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex gap-1">
-            {[1, 2, 3, 4, 5].map((star) => (
-              <Star
-                key={star}
-                className="h-4 w-4 fill-[#F3C95D] text-[#F3C95D]"
-              />
-            ))}
-          </div>
-
-          <span
-            className={`text-3xl font-serif leading-none ${
-              index === 1
-                ? "text-white/15"
-                : "text-[#DCEAE5]"
-            }`}
-          >
-            “
-          </span>
-        </div>
-
-        <p
-          className={`mt-6 flex-1 text-[15px] leading-7 ${
-            index === 1
-              ? "text-white/75"
-              : "text-[#46534F]"
-          }`}
-        >
-          “{review.text}”
-        </p>
-
-        <div
-          className={`mt-8 flex items-center gap-3 border-t pt-6 ${
-            index === 1
-              ? "border-white/10"
-              : "border-[#ECEBE5]"
-          }`}
-        >
-          <div
-            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
-              index === 1
-                ? "bg-[#63E6BE] text-[#173C37]"
-                : index === 2
-                ? "bg-[#E1F5ED] text-[#277765]"
-                : "bg-[#173C37] text-[#63E6BE]"
-            }`}
-          >
-            {review.initials}
-          </div>
-
-          <div>
-            <p
-              className={`font-semibold ${
-                index === 1
-                  ? "text-white"
-                  : "text-[#172322]"
-              }`}
-            >
-              {review.name}
-            </p>
-
-            <p
-              className={`mt-0.5 text-xs ${
-                index === 1
-                  ? "text-white/50"
-                  : "text-[#7A8581]"
-              }`}
-            >
-              {review.location}
-            </p>
-          </div>
-        </div>
-      </article>
-    ))}
-  </div>
-</div>
-
-{/* SLIDE INDICATORS */}
-<div className="mt-8 flex justify-center gap-2">
-  {reviews.slice(0, reviews.length - 2).map((_, index) => (
-    <button
-      key={index}
-      type="button"
-      onClick={() => setReviewStart(index)}
-      aria-label={`Go to review group ${index + 1}`}
-      className={`h-2 rounded-full transition-all duration-300 ${
-        reviewStart === index
-          ? "w-7 bg-[#173C37]"
-          : "w-2 bg-[#CBD3CF]"
-      }`}
-    />
-  ))}
-</div>
-  </div>
-</section>
+      </section>
 
       {/* SAFETY SECTION */}
       <section id="safety" className="bg-[#173C37] text-white">
@@ -776,7 +852,11 @@ const HomePage = () => {
 
       <BookStayModal
         isOpen={bookModalOpen}
-        onClose={() => setBookModalOpen(false)}
+        onClose={() => {
+          setBookModalOpen(false);
+          setSelectedAccommodation(null);
+        }}
+        accommodation={selectedAccommodation}
         onSubmit={handleBookSubmit}
       />
     </main>

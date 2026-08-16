@@ -2,18 +2,27 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useDispatch, useSelector } from "react-redux";
+import { useRouter } from "next/navigation";
 import { Eye, EyeOff, ShieldCheck } from "lucide-react";
 
+import { loginUser } from "../../redux/actions/authActions";
+
 const LoginPage = () => {
+  const dispatch = useDispatch();
+  const router = useRouter();
+
+  const { loading, error, message } = useSelector(
+    (state) => state.auth
+  );
+
   const [formData, setFormData] = useState({
     email: "",
     password: "",
   });
 
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [validationError, setValidationError] = useState("");
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -23,72 +32,50 @@ const LoginPage = () => {
       [name]: value,
     }));
 
-    setError("");
-    setSuccess("");
+    setValidationError("");
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    setError("");
-    setSuccess("");
+    setValidationError("");
 
     const { email, password } = formData;
 
-    if (!email || !password) {
-      setError("Please enter your email and password.");
+    if (!email.trim() || !password) {
+      setValidationError(
+        "Please enter your email and password."
+      );
       return;
     }
 
     try {
-      setLoading(true);
-
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/auth/login`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-          body: JSON.stringify({
-            email: email.trim().toLowerCase(),
-            password,
-          }),
-        }
+      const data = await dispatch(
+        loginUser({
+          email: email.trim().toLowerCase(),
+          password,
+        })
       );
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.message || "Unable to log in."
-        );
-      }
-
-      setSuccess(data.message || "Login successful.");
-
       /*
-       * Redirect based on the user's role.
+       * Redirect based on the authenticated
+       * user's role.
        */
-      if (data.user?.role === "admin") {
-        window.location.href = "/admin";
-      } else if (data.user?.role === "owner") {
-        window.location.href = "/owner/dashboard";
+      const role = data?.user?.role;
+
+      if (role === "admin") {
+        router.push("/admin");
+      } else if (role === "owner") {
+        router.push("/owner");
       } else {
-        window.location.href = "/dashboard";
+        router.push("/traveller");
       }
     } catch (error) {
       console.error("Login error:", error);
-
-      setError(
-        error.message ||
-          "Something went wrong. Please try again."
-      );
-    } finally {
-      setLoading(false);
     }
   };
+
+  const displayedError = validationError || error;
 
   return (
     <main className="min-h-screen bg-[#0b0f0e] text-white">
@@ -105,11 +92,14 @@ const LoginPage = () => {
               href="/"
               className="text-2xl font-bold tracking-tight"
             >
-              Trip<span className="text-[#63E6BE]">Guard</span>
+              Trip<span className="text-[#63E6BE]">
+                Guard
+              </span>
             </Link>
 
             {/* Main message */}
             <div className="max-w-lg">
+
               <div className="flex items-center gap-3 mb-6">
                 <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-[#63E6BE]/10 border border-[#63E6BE]/20">
                   <ShieldCheck
@@ -140,6 +130,7 @@ const LoginPage = () => {
 
               {/* Benefits */}
               <div className="mt-10 space-y-5">
+
                 <div className="flex gap-4">
                   <div className="mt-1 flex-shrink-0 w-6 h-6 rounded-full bg-[#63E6BE]/10 flex items-center justify-center">
                     <ShieldCheck
@@ -179,6 +170,7 @@ const LoginPage = () => {
                     </p>
                   </div>
                 </div>
+
               </div>
             </div>
 
@@ -200,7 +192,9 @@ const LoginPage = () => {
                 href="/"
                 className="text-2xl font-bold tracking-tight"
               >
-                Trip<span className="text-[#63E6BE]">Guard</span>
+                Trip<span className="text-[#63E6BE]">
+                  Guard
+                </span>
               </Link>
             </div>
 
@@ -216,16 +210,16 @@ const LoginPage = () => {
             </div>
 
             {/* Error */}
-            {error && (
+            {displayedError && (
               <div className="mb-6 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-                {error}
+                {displayedError}
               </div>
             )}
 
             {/* Success */}
-            {success && (
+            {message && !displayedError && (
               <div className="mb-6 rounded-xl border border-[#63E6BE]/20 bg-[#63E6BE]/10 px-4 py-3 text-sm text-[#63E6BE]">
-                {success}
+                {message}
               </div>
             )}
 
@@ -234,6 +228,7 @@ const LoginPage = () => {
               onSubmit={handleSubmit}
               className="space-y-5"
             >
+
               {/* Email */}
               <div>
                 <label
@@ -251,12 +246,14 @@ const LoginPage = () => {
                   onChange={handleChange}
                   placeholder="you@example.com"
                   autoComplete="email"
-                  className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3.5 text-sm text-white placeholder:text-gray-600 outline-none transition focus:border-[#63E6BE]/50 focus:bg-white/[0.06]"
+                  disabled={loading}
+                  className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3.5 text-sm text-white placeholder:text-gray-600 outline-none transition focus:border-[#63E6BE]/50 focus:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-60"
                 />
               </div>
 
               {/* Password */}
               <div>
+
                 <div className="flex items-center justify-between mb-2">
                   <label
                     htmlFor="password"
@@ -286,7 +283,8 @@ const LoginPage = () => {
                     onChange={handleChange}
                     placeholder="Enter your password"
                     autoComplete="current-password"
-                    className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3.5 pr-12 text-sm text-white placeholder:text-gray-600 outline-none transition focus:border-[#63E6BE]/50 focus:bg-white/[0.06]"
+                    disabled={loading}
+                    className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3.5 pr-12 text-sm text-white placeholder:text-gray-600 outline-none transition focus:border-[#63E6BE]/50 focus:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-60"
                   />
 
                   <button
@@ -294,7 +292,8 @@ const LoginPage = () => {
                     onClick={() =>
                       setShowPassword((prev) => !prev)
                     }
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 transition hover:text-white"
+                    disabled={loading}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                     aria-label={
                       showPassword
                         ? "Hide password"
@@ -330,9 +329,7 @@ const LoginPage = () => {
                 disabled={loading}
                 className="w-full rounded-xl bg-[#63E6BE] px-5 py-3.5 text-sm font-semibold text-[#08100d] transition hover:bg-[#52d9af] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {loading
-                  ? "Signing in..."
-                  : "Sign in"}
+                {loading ? "Signing in..." : "Sign in"}
               </button>
 
               {/* Register */}
@@ -345,6 +342,7 @@ const LoginPage = () => {
                   Create one
                 </Link>
               </p>
+
             </form>
 
             {/* Security message */}
@@ -379,6 +377,7 @@ const LoginPage = () => {
               </Link>
               .
             </p>
+
           </div>
         </section>
       </div>

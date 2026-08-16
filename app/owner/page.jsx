@@ -14,6 +14,7 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
+import ProtectedRoute from "../../component/ProtectedRoute";
 
 const properties = [
   {
@@ -104,6 +105,7 @@ const stats = [
 
 export default function OwnerPage() {
   return (
+    <ProtectedRoute allowedRole="owner">
     <main className="min-h-screen bg-[#F7F7F2] text-[#172322]">
       {/* PAGE HEADER */}
       <section className="border-b border-[#E4E3DC] bg-white">
@@ -499,5 +501,6 @@ export default function OwnerPage() {
         </section>
       </div>
     </main>
+    </ProtectedRoute>
   );
 }
