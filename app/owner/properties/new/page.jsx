@@ -120,7 +120,7 @@ const defaultRules = [
   "Valid identification required",
 ];
 
-export default function ListPropertyPage() {
+const ListPropertyPage =()=> {
   const [formData, setFormData] = useState({
     propertyName: "",
     propertyType: "",
@@ -1391,3 +1391,4 @@ const customerPrice = basePrice + tripGuardFee;
     </main>
   );
 }
+export default ListPropertyPage;

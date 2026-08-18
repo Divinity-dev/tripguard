@@ -83,13 +83,13 @@ const getAccommodationId = (accommodation) => {
 };
 
 const getAccommodationHref = (accommodation) => {
-  const id = getAccommodationId(accommodation);
+  const slug = accommodation?.slug;
 
-  if (!id) {
+  if (!slug) {
     return "/accommodations";
   }
 
-  return `/accommodations/${id}`;
+  return `/accommodations/${slug}`;
 };
 
 const getAccommodationImage = (accommodation) => {

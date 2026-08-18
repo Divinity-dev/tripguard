@@ -3,7 +3,16 @@
 import Link from "next/link";
 import { Check, ShieldCheck, X } from "lucide-react";
 
-const PaymentSuccessModal = ({ amount = 0, onClose = () => {}, propertyName = "your stay" }) => {
+const PaymentSuccessModal = ({
+  amount = 0,
+  onClose = () => {},
+  propertyName = "your stay",
+  bookingReference = "",
+}) => {
+  const formattedAmount = `₦${Number(amount).toLocaleString(
+    "en-NG"
+  )}`;
+
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center px-4 py-6">
       <button
@@ -52,9 +61,21 @@ const PaymentSuccessModal = ({ amount = 0, onClose = () => {}, propertyName = "y
             </span>
 
             <span className="text-sm font-bold text-[#173C37]">
-              ₦{Number(amount).toLocaleString()}
+              {formattedAmount}
             </span>
           </div>
+
+          {bookingReference && (
+            <div className="mt-3 flex items-center justify-between border-t border-[#E8EAE5] pt-3">
+              <span className="text-xs text-[#7A8581]">
+                Booking reference
+              </span>
+
+              <span className="max-w-[180px] truncate text-xs font-semibold text-[#173C37]">
+                {bookingReference}
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="mt-5 rounded-2xl bg-[#F0F7F4] p-4 text-left">
@@ -62,7 +83,9 @@ const PaymentSuccessModal = ({ amount = 0, onClose = () => {}, propertyName = "y
             <ShieldCheck className="h-5 w-5 shrink-0 text-[#397A69]" />
 
             <p className="text-xs leading-5 text-[#6E7B76]">
-              When you're ready to use your accommodation, go to your booking and check in. That's when TripGuard will notify your trusted contact.
+              When you're ready to use your accommodation, go to
+              your booking and check in. That's when TripGuard will
+              notify your trusted contact.
             </p>
           </div>
         </div>

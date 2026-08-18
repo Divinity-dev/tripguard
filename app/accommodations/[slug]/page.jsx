@@ -1,7 +1,9 @@
 import AccommodationDetailPage from "@/component/AccommodationsDetailspage";
 
-export default async function Page({ params }) {
-  const { id } = await params;
+const Page = async ({ params }) => {
+  const { slug } = await params;
 
-  return <AccommodationDetailPage id={id} />;
-}
+  return <AccommodationDetailPage slug={slug} />;
+};
+
+export default Page;

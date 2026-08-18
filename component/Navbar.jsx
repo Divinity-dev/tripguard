@@ -4,25 +4,28 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X, ShieldCheck } from "lucide-react";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
+
+import { logoutUser } from "../redux/actions/authActions";
 
 const Navbar = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
   const pathname = usePathname();
+  const dispatch = useDispatch();
+
   const { user, isAuthenticated } = useSelector(
-  (state) => state.auth
-);
+    (state) => state.auth
+  );
 
-const dashboardRoute =
-  user?.role === "admin"
-    ? "/admin"
-    : user?.role === "owner"
-    ? "/owner"
-    : "/traveller";
+  const dashboardRoute =
+    user?.role === "admin"
+      ? "/admin"
+      : user?.role === "owner"
+      ? "/owner"
+      : "/traveller";
 
-  // Only the homepage can have a transparent navbar
   const isHomePage = pathname === "/";
 
   useEffect(() => {
@@ -32,7 +35,6 @@ const dashboardRoute =
     }
 
     const handleScroll = () => {
-      // Change navbar after leaving the hero section
       const heroHeight = window.innerHeight;
 
       setScrolled(window.scrollY > heroHeight - 80);
@@ -49,6 +51,16 @@ const dashboardRoute =
 
   const transparentNavbar = isHomePage && !scrolled;
 
+  const handleLogout = async () => {
+    setMenuOpen(false);
+
+    try {
+      await dispatch(logoutUser());
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+  };
+
   return (
     <header
       className={`fixed left-0 top-0 z-50 w-full transition-all duration-300 ${
@@ -58,7 +70,7 @@ const dashboardRoute =
       }`}
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
-        
+
         {/* LOGO */}
         <Link
           href="/"
@@ -76,6 +88,7 @@ const dashboardRoute =
 
         {/* DESKTOP NAV */}
         <nav className="hidden items-center gap-8 md:flex">
+
           <Link
             href="/accommodations"
             className="text-sm font-medium text-white/80 transition hover:text-white"
@@ -83,47 +96,59 @@ const dashboardRoute =
             Explore stays
           </Link>
 
-            {isAuthenticated && user && (
-  <Link
-    href={dashboardRoute}
-    className="text-sm font-medium text-white/80 transition hover:text-white"
-  >
-    Dashboard
-  </Link>
-)}
+          {isAuthenticated && user && (
+            <Link
+              href={dashboardRoute}
+              className="text-sm font-medium text-white/80 transition hover:text-white"
+            >
+              Dashboard
+            </Link>
+          )}
 
           <Link
             href="/about"
             className="text-sm font-medium text-white/80 transition hover:text-white"
           >
-           About Us
+            About Us
           </Link>
 
-            <Link
+          <Link
             href="/contact"
             className="text-sm font-medium text-white/80 transition hover:text-white"
           >
             Contact Us
           </Link>
-
-        
         </nav>
 
         {/* DESKTOP ACTIONS */}
         <div className="hidden items-center gap-3 md:flex">
-          <Link
-            href="/login"
-            className="rounded-full px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
-          >
-            Log in
-          </Link>
 
-          <Link
-            href="/register"
-            className="rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-[#173C37] transition hover:bg-[#63E6BE]"
-          >
-            Get started
-          </Link>
+          {isAuthenticated ? (
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="rounded-full px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
+            >
+              Log out
+            </button>
+          ) : (
+            <>
+              <Link
+                href="/login"
+                className="rounded-full px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
+              >
+                Log in
+              </Link>
+
+              <Link
+                href="/register"
+                className="rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-[#173C37] transition hover:bg-[#63E6BE]"
+              >
+                Get started
+              </Link>
+            </>
+          )}
+
         </div>
 
         {/* MOBILE MENU BUTTON */}
@@ -144,6 +169,7 @@ const dashboardRoute =
       {/* MOBILE MENU */}
       {menuOpen && (
         <div className="mx-4 mb-4 rounded-2xl border border-white/10 bg-[#10201E]/95 p-5 shadow-2xl backdrop-blur-xl md:hidden">
+
           <nav className="flex flex-col gap-2">
 
             <Link
@@ -154,15 +180,15 @@ const dashboardRoute =
               Explore stays
             </Link>
 
-        {isAuthenticated && user && (
-  <Link
-    href={dashboardRoute}
-    onClick={() => setMenuOpen(false)}
-    className="rounded-xl px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10"
-  >
-    Dashboard
-  </Link>
-)}
+            {isAuthenticated && user && (
+              <Link
+                href={dashboardRoute}
+                onClick={() => setMenuOpen(false)}
+                className="rounded-xl px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10"
+              >
+                Dashboard
+              </Link>
+            )}
 
             <Link
               href="/about"
@@ -171,33 +197,44 @@ const dashboardRoute =
             >
               About Us
             </Link>
-            
-              <Link
+
+            <Link
               href="/contact"
               onClick={() => setMenuOpen(false)}
               className="rounded-xl px-4 py-3 text-sm font-medium text-white transition hover:bg-white/10"
             >
               Contact Us
             </Link>
-          
 
             <div className="my-2 h-px bg-white/10" />
 
-            <Link
-              href="/login"
-              onClick={() => setMenuOpen(false)}
-              className="rounded-xl px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-white/10"
-            >
-              Log in
-            </Link>
+            {isAuthenticated ? (
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="rounded-xl px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-white/10"
+              >
+                Log out
+              </button>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  onClick={() => setMenuOpen(false)}
+                  className="rounded-xl px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-white/10"
+                >
+                  Log in
+                </Link>
 
-            <Link
-              href="/register"
-              onClick={() => setMenuOpen(false)}
-              className="rounded-xl bg-[#63E6BE] px-4 py-3 text-center text-sm font-semibold text-[#173C37] transition hover:bg-[#7AEECC]"
-            >
-              Get started
-            </Link>
+                <Link
+                  href="/register"
+                  onClick={() => setMenuOpen(false)}
+                  className="rounded-xl bg-[#63E6BE] px-4 py-3 text-center text-sm font-semibold text-[#173C37] transition hover:bg-[#7AEECC]"
+                >
+                  Get started
+                </Link>
+              </>
+            )}
 
           </nav>
         </div>
@@ -207,4 +244,3 @@ const dashboardRoute =
 };
 
 export default Navbar;
-

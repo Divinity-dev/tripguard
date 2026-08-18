@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState,  useRef,} from "react";
 import {
   ArrowLeft,
   CalendarDays,
@@ -14,233 +14,505 @@ import {
   Info,
 } from "lucide-react";
 
+import { useRouter, useSearchParams } from "next/navigation";
+
 import PaymentSuccessModal from "../../component/PaymentSuccessModal";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
 const PaymentPage = () => {
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isPaymentSuccessModalOpen, setIsPaymentSuccessModalOpen] =
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const accommodationId =
+    searchParams.get("accommodationId");
+
+  const checkInDate =
+    searchParams.get("checkInDate");
+
+  const checkOutDate =
+    searchParams.get("checkOutDate");
+
+  const guests =
+    Number(searchParams.get("guests")) || 1;
+
+  const [booking, setBooking] = useState(null);
+
+  const [loadingBooking, setLoadingBooking] =
+    useState(true);
+
+  const [isProcessing, setIsProcessing] =
     useState(false);
-  const [paymentError, setPaymentError] = useState("");
 
-  /*
-   * Temporary booking data.
-   *
-   * Later this will come directly from
-   * the booking created before payment.
-   */
-  const booking = {
-    id: "temp-booking-id",
+  const [
+    isPaymentSuccessModalOpen,
+    setIsPaymentSuccessModalOpen,
+  ] = useState(false);
 
-    propertyId: "the-meridian-house",
+  const [paymentError, setPaymentError] =
+    useState("");
 
-    propertyName: "The Meridian House",
-    propertyType: "Luxury Hotel",
-    location: "Victoria Island, Lagos",
-    rating: "4.9",
-
-    checkIn: "August 18, 2026",
-    checkOut: "August 21, 2026",
-    checkInDate: "2026-08-18",
-    checkOutDate: "2026-08-21",
-
-    guests: 2,
-    nights: 3,
-
-    pricePerNight: 60000,
-  };
-
-  const customer = {
-    email: "divine_asiriuwa@yahoo.com",
-    firstName: "Divine",
-    lastName: "Asiriuwa",
-    phone: "",
-  };
+const bookingCreationStarted = useRef(false);
 
   /*
    * --------------------------------------------------
-   * PRICE CALCULATION
+   * CREATE BOOKING
    * --------------------------------------------------
    *
-   * Accommodation:
-   * ₦60,000 × 3 nights = ₦180,000
+   * BookStayModal only collects:
    *
-   * TripGuard fee:
-   * 10% of ₦180,000 = ₦18,000
+   * - accommodationId
+   * - checkInDate
+   * - checkOutDate
+   * - guests
    *
-   * Final amount:
-   * ₦180,000 + ₦18,000 = ₦198,000
+   * We now send those details to the backend.
+   *
+   * The backend is responsible for:
+   *
+   * - validating the accommodation
+   * - validating availability
+   * - validating dates
+   * - validating guests
+   * - calculating nights
+   * - calculating accommodation amount
+   * - calculating service fee
+   * - calculating total amount
+   * - creating the real booking
    */
 
-  const accommodationTotal =
-    booking.pricePerNight * booking.nights;
+ useEffect(() => {
+  if (bookingCreationStarted.current) {
+    return;
+  }
 
-  const tripGuardFeeRate = 10;
+  bookingCreationStarted.current = true;
 
-  const tripGuardFee =
-    Math.round(
-      accommodationTotal *
-        (tripGuardFeeRate / 100) *
-        100
-    ) / 100;
-
-  const totalAmount =
-    accommodationTotal + tripGuardFee;
-
-  const handlePayment = async () => {
+  const createBooking = async () => {
     setPaymentError("");
+    setLoadingBooking(true);
 
-    if (!customer.email) {
+    if (!API_URL) {
       setPaymentError(
-        "We couldn't find your email address. Please sign in again and try again."
+        "API URL has not been configured."
       );
+
+      setLoadingBooking(false);
       return;
     }
 
-    if (!totalAmount || totalAmount <= 0) {
-      setPaymentError("Invalid payment amount.");
+    if (
+      !accommodationId ||
+      !checkInDate ||
+      !checkOutDate
+    ) {
+      setPaymentError(
+        "Your booking information is incomplete."
+      );
+
+      setLoadingBooking(false);
       return;
     }
-
-    setIsProcessing(true);
 
     try {
-      const { default: PaystackPop } = await import(
-        "@paystack/inline-js"
+      const response = await fetch(
+        `${API_URL}/bookings`,
+        {
+          method: "POST",
+          credentials: "include",
+
+          headers: {
+            "Content-Type": "application/json",
+          },
+
+          body: JSON.stringify({
+            accommodation: accommodationId,
+            checkInDate,
+            checkOutDate,
+            guests,
+          }),
+        }
       );
 
-      const publicKey =
-        process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
+      const data = await response.json();
 
-      if (!publicKey) {
+      if (!response.ok || !data.success) {
         throw new Error(
-          "Paystack public key has not been configured."
+          data.message ||
+            "Unable to create your booking."
         );
       }
 
-      const paystack = new PaystackPop();
+      if (!data.booking) {
+        throw new Error(
+          "Booking information was not returned."
+        );
+      }
 
-      paystack.newTransaction({
-        key: publicKey,
-
-        email: customer.email,
-
-        /*
-         * Paystack expects the amount in kobo.
-         *
-         * This is the COMPLETE amount:
-         *
-         * Accommodation + TripGuard 10% fee
-         */
-        amount: Math.round(totalAmount * 100),
-
-        currency: "NGN",
-
-        firstName: customer.firstName,
-        lastName: customer.lastName,
-        phone: customer.phone,
-
-        channels: [
-          "card",
-          "bank",
-          "ussd",
-          "qr",
-          "eft",
-          "bank_transfer",
-        ],
-
-        metadata: {
-          bookingId: booking.id,
-          accommodationId: booking.propertyId,
-          accommodationName: booking.propertyName,
-
-          checkInDate: booking.checkInDate,
-          checkOutDate: booking.checkOutDate,
-
-          guests: booking.guests,
-          nights: booking.nights,
-
-          accommodationAmount: accommodationTotal,
-          serviceFee: tripGuardFee,
-          serviceFeeRate: tripGuardFeeRate,
-          totalAmount,
-        },
-
-        onLoad: (response) => {
-          console.log(
-            "Paystack checkout loaded:",
-            response
-          );
-
-          setIsProcessing(false);
-        },
-
-        onSuccess: (transaction) => {
-          console.log(
-            "Paystack payment completed:",
-            transaction
-          );
-
-          /*
-           * IMPORTANT:
-           *
-           * The frontend does not permanently confirm
-           * the booking.
-           *
-           * Paystack reference
-           *        ↓
-           * Backend verification
-           *        ↓
-           * Payment confirmed
-           *        ↓
-           * Booking confirmed
-           */
-
-          setIsProcessing(false);
-
-          setIsPaymentSuccessModalOpen(true);
-        },
-
-        onCancel: () => {
-          console.log(
-            "Paystack payment cancelled."
-          );
-
-          setIsProcessing(false);
-        },
-
-        onError: (error) => {
-          console.error(
-            "Paystack payment error:",
-            error
-          );
-
-          setIsProcessing(false);
-
-          setPaymentError(
-            "We couldn't complete the payment. Please try again."
-          );
-        },
-      });
+      setBooking(data.booking);
     } catch (error) {
       console.error(
-        "Unable to initialize Paystack:",
+        "Unable to create booking:",
         error
       );
 
-      setIsProcessing(false);
-
       setPaymentError(
         error?.message ||
-          "Unable to open the payment checkout. Please try again."
+          "Unable to create your booking."
       );
+    } finally {
+      setLoadingBooking(false);
     }
   };
+
+  createBooking();
+}, [
+  accommodationId,
+  checkInDate,
+  checkOutDate,
+  guests,
+]);
+
+
+
+  /*
+   * --------------------------------------------------
+   * INITIALIZE PAYMENT
+   * --------------------------------------------------
+   *
+   * ONLY the real booking ID is sent.
+   *
+   * The backend remains the source of truth for:
+   *
+   * - amount
+   * - commission
+   * - owner amount
+   * - payment record
+   * - Paystack configuration
+   */
+
+  const initializePayment = async () => {
+
+    if (!booking?._id && !booking?.id) {
+      throw new Error(
+        "A valid booking is required before making payment."
+      );
+    }
+
+    if (!API_URL) {
+      throw new Error(
+        "API URL has not been configured."
+      );
+    }
+
+    const bookingId =
+      booking?._id || booking?.id;
+
+   const response = await fetch(
+  `${API_URL}/payments/initialize`,
+  {
+    method: "POST",
+
+    credentials: "include",
+
+    headers: {
+      "Content-Type": "application/json",
+    },
+
+    body: JSON.stringify({
+      bookingId,
+    }),
+  }
+);
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(
+        data.message ||
+          "Unable to initialize payment."
+      );
+    }
+
+    if (!data.payment) {
+      throw new Error(
+        "Payment information was not returned."
+      );
+    }
+
+    return data.payment;
+  };
+
+  /*
+   * --------------------------------------------------
+   * VERIFY PAYMENT
+   * --------------------------------------------------
+   */
+
+  const verifyPayment = async (reference) => {
+   
+   if (!reference) {
+      throw new Error(
+        "Payment reference was not provided."
+      );
+    }
+
+    if (!API_URL) {
+      throw new Error(
+        "API URL has not been configured."
+      );
+    }
+
+  const response = await fetch(
+  `${API_URL}/payments/verify/${encodeURIComponent(
+    reference
+  )}`,
+  {
+    method: "GET",
+
+    credentials: "include",
+  }
+);
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(
+        data.message ||
+          "Unable to verify payment."
+      );
+    }
+
+    return data;
+  };
+
+  /*
+   * --------------------------------------------------
+   * HANDLE PAYMENT
+   * --------------------------------------------------
+   */
+
+const handlePayment = async () => {
+  setPaymentError("");
+
+  if (!booking?._id && !booking?.id) {
+    setPaymentError(
+      "A valid booking is required before making payment."
+    );
+
+    return;
+  }
+
+  setIsProcessing(true);
+
+  try {
+    /*
+     * --------------------------------------------------
+     * STEP 1
+     * INITIALIZE PAYMENT ON BACKEND
+     * --------------------------------------------------
+     *
+     * The backend is the source of truth for:
+     *
+     * - booking amount
+     * - TripGuard fee
+     * - owner amount
+     * - transaction charge
+     * - Paystack reference
+     * - Paystack authorization URL
+     */
+
+    const payment =
+      await initializePayment();
+
+    /*
+     * --------------------------------------------------
+     * STEP 2
+     * VALIDATE AUTHORIZATION URL
+     * --------------------------------------------------
+     */
+
+    if (!payment?.authorizationUrl) {
+      throw new Error(
+        "Paystack authorization URL was not returned."
+      );
+    }
+
+    /*
+     * --------------------------------------------------
+     * STEP 3
+     * REDIRECT TO PAYSTACK
+     * --------------------------------------------------
+     *
+     * Do not initialize Paystack again here.
+     *
+     * The transaction has already been created
+     * by our backend.
+     */
+
+    window.location.href =
+      payment.authorizationUrl;
+  } catch (error) {
+    console.error(
+      "Unable to start payment:",
+      error
+    );
+
+    setIsProcessing(false);
+
+    setPaymentError(
+      error?.message ||
+        "Unable to initialize payment. Please try again."
+    );
+  }
+};
+
+  /*
+   * --------------------------------------------------
+   * LOADING BOOKING
+   * --------------------------------------------------
+   */
+
+  if (loadingBooking) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#F7F7F2]">
+        <div className="flex items-center gap-3 text-[#173C37]">
+
+          <Loader2 className="h-5 w-5 animate-spin" />
+
+          <span className="text-sm font-medium">
+            Preparing your booking...
+          </span>
+
+        </div>
+      </main>
+    );
+  }
+
+  /*
+   * --------------------------------------------------
+   * BOOKING ERROR
+   * --------------------------------------------------
+   */
+
+  if (!booking) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#F7F7F2] px-5">
+
+        <div className="w-full max-w-md rounded-[28px] border border-[#E1E0D9] bg-white p-8 text-center shadow-sm">
+
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
+
+            <Info className="h-5 w-5 text-red-600" />
+
+          </div>
+
+          <h1 className="mt-5 text-xl font-semibold text-[#173C37]">
+            Unable to load booking
+          </h1>
+
+          <p className="mt-3 text-sm leading-6 text-[#75817D]">
+            {paymentError ||
+              "We couldn't create the booking you're trying to pay for."}
+          </p>
+
+          <Link
+            href="/accommodations"
+            className="mt-6 flex w-full items-center justify-center rounded-xl bg-[#173C37] px-5 py-4 font-semibold text-white transition hover:bg-[#23584E]"
+          >
+            Explore stays
+          </Link>
+
+        </div>
+
+      </main>
+    );
+  }
+
+  /*
+   * --------------------------------------------------
+   * DISPLAY VALUES
+   * --------------------------------------------------
+   *
+   * Everything below is presentation only.
+   */
+
+  const totalAmount =
+    Number(
+      booking.totalAmount ??
+      booking.amount ??
+      booking.paymentAmount ??
+      0
+    );
+
+  const accommodationAmount =
+    Number(
+      booking.accommodationAmount ??
+      booking.baseAmount ??
+      0
+    );
+
+  const serviceFee =
+    Number(
+      booking.serviceFee ?? 0
+    );
+
+  const serviceFeeRate =
+    Number(
+      booking.serviceFeeRate ?? 10
+    );
+
+  const propertyName =
+    booking.propertyName ||
+    booking.accommodation?.name ||
+    "Your stay";
+
+  const propertyType =
+    booking.propertyType ||
+    booking.accommodation?.type ||
+    "Accommodation";
+
+  const locationData =
+  booking.location ||
+  booking.accommodation?.location ||
+  {};
+
+const location = [
+  locationData.address,
+  locationData.city,
+  locationData.state,
+].filter(Boolean).join(", ");
+
+  const rating =
+    booking.rating ||
+    booking.accommodation?.rating ||
+    "";
+
+  const numberOfGuests =
+    booking.guests ??
+    booking.numberOfGuests ??
+    guests;
+
+  const nights =
+    booking.nights ?? 0;
+
+  const displayCheckIn =
+    booking.checkIn ||
+    booking.checkInDate ||
+    checkInDate;
+
+  const displayCheckOut =
+    booking.checkOut ||
+    booking.checkOutDate ||
+    checkOutDate;
 
   return (
     <main className="min-h-screen bg-[#F7F7F2] text-[#172322]">
 
       {/* TOP NAV */}
+
       <div className="border-b border-[#E4E3DC] bg-white">
+
         <div className="mx-auto flex max-w-6xl items-center px-5 py-4 lg:px-8">
 
           <Link
@@ -248,27 +520,34 @@ const PaymentPage = () => {
             className="flex items-center gap-2 text-sm font-semibold text-[#397A69] transition hover:text-[#173C37]"
           >
             <ArrowLeft className="h-4 w-4" />
+
             Back
           </Link>
 
           <div className="mx-auto pr-12">
+
             <p className="text-sm font-semibold text-[#173C37]">
               Secure payment
             </p>
+
           </div>
 
         </div>
+
       </div>
 
       {/* PAGE */}
+
       <div className="mx-auto max-w-6xl px-5 py-10 lg:px-8">
 
         <div className="grid gap-8 lg:grid-cols-[1fr_380px]">
 
           {/* PAYMENT */}
+
           <section>
 
             <div>
+
               <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#397A69]">
                 Complete your booking
               </p>
@@ -282,18 +561,23 @@ const PaymentPage = () => {
                 Your booking will be confirmed after your payment
                 has been successfully verified.
               </p>
+
             </div>
 
             {/* PAYMENT CARD */}
+
             <div className="mt-8 rounded-[28px] border border-[#E1E0D9] bg-white p-6 shadow-sm sm:p-8">
 
               <div className="flex items-center gap-3 border-b border-[#ECEBE5] pb-6">
 
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#E1F5ED]">
+
                   <LockKeyhole className="h-5 w-5 text-[#277765]" />
+
                 </div>
 
                 <div>
+
                   <h2 className="font-semibold">
                     Secure payment
                   </h2>
@@ -301,13 +585,15 @@ const PaymentPage = () => {
                   <p className="mt-1 text-xs text-[#7A8581]">
                     Your payment is securely processed by Paystack.
                   </p>
+
                 </div>
 
               </div>
 
               <div className="mt-7 space-y-6">
 
-                {/* CUSTOMER EMAIL */}
+                {/* EMAIL */}
+
                 <div>
 
                   <label className="mb-2 block text-sm font-semibold">
@@ -315,7 +601,11 @@ const PaymentPage = () => {
                   </label>
 
                   <div className="flex h-12 items-center rounded-xl border border-[#DCE3E1] bg-[#F7F8F4] px-4 text-sm text-[#172322]">
-                    {customer.email}
+
+                    {booking?.guest?.email ||
+                      booking?.user?.email ||
+                      "Your account email"}
+
                   </div>
 
                   <p className="mt-2 text-xs text-[#7A8581]">
@@ -325,7 +615,8 @@ const PaymentPage = () => {
 
                 </div>
 
-                {/* FEE EXPLANATION */}
+                {/* SERVICE FEE */}
+
                 <div className="rounded-2xl border border-[#DDEDE7] bg-[#F0F7F4] p-5">
 
                   <div className="flex gap-3">
@@ -339,9 +630,9 @@ const PaymentPage = () => {
                       </p>
 
                       <p className="mt-1 text-xs leading-5 text-[#6E7B76]">
-                        A 10% TripGuard service fee is added to
-                        the accommodation price. This helps us
-                        provide secure payment processing,
+                        A {serviceFeeRate}% TripGuard service fee
+                        is included in your booking total. This
+                        helps us provide secure payment processing,
                         booking protection and TripGuard safety
                         features.
                       </p>
@@ -352,7 +643,8 @@ const PaymentPage = () => {
 
                 </div>
 
-                {/* PAYMENT ERROR */}
+                {/* ERROR */}
+
                 {paymentError && (
                   <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
 
@@ -363,23 +655,33 @@ const PaymentPage = () => {
                   </div>
                 )}
 
-                {/* PAY BUTTON */}
+                {/* PAY */}
+
                 <button
                   type="button"
                   onClick={handlePayment}
-                  disabled={isProcessing}
+                  disabled={
+                    isProcessing ||
+                    !booking?._id &&
+                    !booking?.id
+                  }
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#173C37] px-5 py-4 font-semibold text-white transition hover:bg-[#23584E] disabled:cursor-not-allowed disabled:opacity-60"
                 >
 
                   {isProcessing ? (
                     <>
                       <Loader2 className="h-5 w-5 animate-spin" />
+
                       Opening secure checkout...
                     </>
                   ) : (
                     <>
                       <LockKeyhole className="h-5 w-5 text-[#63E6BE]" />
-                      Pay ₦{totalAmount.toLocaleString()}
+
+                      Pay ₦
+                      {totalAmount.toLocaleString(
+                        "en-NG"
+                      )}
                     </>
                   )}
 
@@ -397,40 +699,45 @@ const PaymentPage = () => {
           </section>
 
           {/* BOOKING SUMMARY */}
+
           <aside className="lg:sticky lg:top-6 lg:h-fit">
 
             <div className="rounded-[28px] border border-[#E1E0D9] bg-white p-6 shadow-xl">
 
               {/* PROPERTY */}
+
               <div className="border-b border-[#ECEBE5] pb-6">
 
                 <span className="rounded-full bg-[#E1F5ED] px-3 py-1.5 text-xs font-bold text-[#277765]">
-                  {booking.propertyType}
+                  {propertyType}
                 </span>
 
                 <h2 className="mt-4 text-xl font-semibold">
-                  {booking.propertyName}
+                  {propertyName}
                 </h2>
 
                 <div className="mt-2 flex items-center gap-2 text-sm text-[#75817D]">
 
                   <MapPin className="h-4 w-4 text-[#397A69]" />
 
-                  {booking.location}
+                  {location}
 
                 </div>
 
-                <div className="mt-3 flex items-center gap-1 text-sm font-semibold">
+                {rating && (
+                  <div className="mt-3 flex items-center gap-1 text-sm font-semibold">
 
-                  <Star className="h-4 w-4 fill-[#F3C95D] text-[#F3C95D]" />
+                    <Star className="h-4 w-4 fill-[#F3C95D] text-[#F3C95D]" />
 
-                  {booking.rating}
+                    {rating}
 
-                </div>
+                  </div>
+                )}
 
               </div>
 
               {/* DATES */}
+
               <div className="border-b border-[#ECEBE5] py-6">
 
                 <div className="grid grid-cols-2 gap-4">
@@ -448,7 +755,7 @@ const PaymentPage = () => {
                     </div>
 
                     <p className="mt-2 text-sm font-semibold">
-                      {booking.checkIn}
+                      {displayCheckIn}
                     </p>
 
                   </div>
@@ -466,7 +773,7 @@ const PaymentPage = () => {
                     </div>
 
                     <p className="mt-2 text-sm font-semibold">
-                      {booking.checkOut}
+                      {displayCheckOut}
                     </p>
 
                   </div>
@@ -478,7 +785,7 @@ const PaymentPage = () => {
                   <Users className="h-4 w-4 text-[#397A69]" />
 
                   <span>
-                    {booking.guests} guests · {booking.nights} nights
+                    {numberOfGuests} guests · {nights} nights
                   </span>
 
                 </div>
@@ -486,6 +793,7 @@ const PaymentPage = () => {
               </div>
 
               {/* PRICE */}
+
               <div className="py-6">
 
                 <h3 className="text-sm font-semibold">
@@ -494,45 +802,54 @@ const PaymentPage = () => {
 
                 <div className="mt-5 space-y-4 text-sm">
 
-                  {/* ACCOMMODATION */}
-                  <div className="flex justify-between gap-4 text-[#596661]">
+                  {accommodationAmount > 0 && (
+                    <div className="flex justify-between gap-4 text-[#596661]">
 
-                    <span>
-                      ₦{booking.pricePerNight.toLocaleString()} ×{" "}
-                      {booking.nights} nights
-                    </span>
-
-                    <span>
-                      ₦{accommodationTotal.toLocaleString()}
-                    </span>
-
-                  </div>
-
-                  {/* TRIPGUARD FEE */}
-                  <div className="flex justify-between gap-4 text-[#596661]">
-
-                    <div>
                       <span>
-                        TripGuard service fee
+                        Accommodation
                       </span>
 
-                      <span className="ml-1 text-xs text-[#397A69]">
-                        ({tripGuardFeeRate}%)
+                      <span>
+                        ₦
+                        {accommodationAmount.toLocaleString(
+                          "en-NG"
+                        )}
                       </span>
+
                     </div>
+                  )}
 
-                    <span>
-                      ₦{tripGuardFee.toLocaleString()}
-                    </span>
+                  {serviceFee > 0 && (
+                    <div className="flex justify-between gap-4 text-[#596661]">
 
-                  </div>
+                      <div>
+
+                        <span>
+                          TripGuard service fee
+                        </span>
+
+                        <span className="ml-1 text-xs text-[#397A69]">
+                          ({serviceFeeRate}%)
+                        </span>
+
+                      </div>
+
+                      <span>
+                        ₦
+                        {serviceFee.toLocaleString(
+                          "en-NG"
+                        )}
+                      </span>
+
+                    </div>
+                  )}
 
                 </div>
 
-                {/* TOTAL */}
                 <div className="mt-5 flex items-center justify-between border-t border-[#ECEBE5] pt-5">
 
                   <div>
+
                     <span className="font-semibold">
                       Total
                     </span>
@@ -540,10 +857,16 @@ const PaymentPage = () => {
                     <p className="mt-1 text-xs text-[#7A8581]">
                       Amount you pay
                     </p>
+
                   </div>
 
                   <span className="text-xl font-bold text-[#173C37]">
-                    ₦{totalAmount.toLocaleString()}
+
+                    ₦
+                    {totalAmount.toLocaleString(
+                      "en-NG"
+                    )}
+
                   </span>
 
                 </div>
@@ -551,6 +874,7 @@ const PaymentPage = () => {
               </div>
 
               {/* PAYMENT NOTICE */}
+
               <div className="rounded-2xl bg-[#F7F8F4] p-4">
 
                 <div className="flex gap-3">
@@ -560,14 +884,16 @@ const PaymentPage = () => {
                   <div>
 
                     <p className="text-sm font-semibold text-[#173C37]">
-                      You will pay ₦{totalAmount.toLocaleString()}
+                      You will pay ₦
+                      {totalAmount.toLocaleString(
+                        "en-NG"
+                      )}
                     </p>
 
                     <p className="mt-1 text-xs leading-5 text-[#6E7B76]">
-                      This includes the accommodation cost of ₦
-                      {accommodationTotal.toLocaleString()} and
-                      the 10% TripGuard service fee of ₦
-                      {tripGuardFee.toLocaleString()}.
+                      Your payment is securely processed
+                      through Paystack. TripGuard does not
+                      store your card details.
                     </p>
 
                   </div>
@@ -577,6 +903,7 @@ const PaymentPage = () => {
               </div>
 
               {/* SAFETY */}
+
               <div className="mt-4 rounded-2xl bg-[#F0F7F4] p-4">
 
                 <div className="flex gap-3">
@@ -590,8 +917,8 @@ const PaymentPage = () => {
                     </p>
 
                     <p className="mt-1 text-xs leading-5 text-[#6E7B76]">
-                      Once your booking is confirmed, you can check
-                      in from your dashboard when you arrive.
+                      Once your booking is confirmed, you can
+                      check in from your dashboard when you arrive.
                     </p>
 
                   </div>
@@ -608,11 +935,12 @@ const PaymentPage = () => {
 
       </div>
 
-      {/* PAYMENT SUCCESS */}
+      {/* SUCCESS */}
+
       {isPaymentSuccessModalOpen && (
         <PaymentSuccessModal
           amount={totalAmount}
-          propertyName={booking.propertyName}
+          propertyName={propertyName}
           onClose={() =>
             setIsPaymentSuccessModalOpen(false)
           }
