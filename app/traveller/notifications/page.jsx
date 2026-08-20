@@ -10,145 +10,408 @@ import {
   LogOut,
   ShieldCheck,
   Trash2,
-  X,
+  Loader2,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-const initialNotifications = [
-  {
-    id: 1,
-    type: "trip",
-    title: "Booking confirmed",
-    message:
-      "Your booking at The Meridian House has been confirmed.",
-    time: "2 days ago",
-    read: false,
-    icon: <CheckCircle2 size={19} />,
-  },
-  {
-    id: 2,
-    type: "safety",
-    title: "TripGuard Protection is active",
-    message:
-      "Your safety contact, Sarah Johnson, will receive updates about your trip.",
-    time: "2 days ago",
-    read: false,
-    icon: <ShieldCheck size={19} />,
-  },
-  {
-    id: 3,
-    type: "payment",
-    title: "Payment successful",
-    message:
-      "Your payment of ₦185,000 for The Meridian House was successful.",
-    time: "2 days ago",
-    read: false,
-    icon: <CreditCard size={19} />,
-  },
-  {
-    id: 4,
-    type: "trip",
-    title: "Your trip is coming up",
-    message:
-      "Your stay at The Meridian House starts on August 15, 2026.",
-    time: "1 day ago",
-    read: true,
-    icon: <LogIn size={19} />,
-  },
-  {
-    id: 5,
-    type: "safety",
-    title: "Remember to check in",
-    message:
-      "Check in when you arrive at your accommodation to activate your TripGuard stay status.",
-    time: "12 hours ago",
-    read: true,
-    icon: <ShieldCheck size={19} />,
-  },
-  {
-    id: 6,
-    type: "trip",
-    title: "Booking reminder",
-    message:
-      "Your check-in time at The Meridian House is 2:00 PM.",
-    time: "8 hours ago",
-    read: true,
-    icon: <Bell size={19} />,
-  },
-  {
-    id: 7,
-    type: "payment",
-    title: "Receipt available",
-    message:
-      "Your receipt for booking TG-2026-00124 is now available.",
-    time: "5 hours ago",
-    read: true,
-    icon: <CreditCard size={19} />,
-  },
-  {
-    id: 8,
-    type: "safety",
-    title: "TripGuard keeps your loved ones informed",
-    message:
-      "Remember to check out when your stay ends so your safety contact receives your final trip update.",
-    time: "3 hours ago",
-    read: true,
-    icon: <LogOut size={19} />,
-  },
-];
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 const TravellerNotificationsPage = () => {
-  const [notifications, setNotifications] = useState(
-    initialNotifications
-  );
+  const [notifications, setNotifications] = useState([]);
 
   const [activeFilter, setActiveFilter] = useState("all");
 
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const [markingAll, setMarkingAll] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
+
+  const [processingId, setProcessingId] = useState(null);
+
+  /*
+   * ==================================================
+   * FETCH NOTIFICATIONS
+   * ==================================================
+   */
+
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      if (!API_URL) {
+        throw new Error(
+          "NEXT_PUBLIC_API_URL is not configured"
+        );
+      }
+
+      const response = await fetch(
+        `${API_URL}/notifications`,
+        {
+          method: "GET",
+          credentials: "include",
+        }
+      );
+
+      const data = await response.json();
+
+      console.log(
+        "Notifications response:",
+        data
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          data.message ||
+            "Unable to retrieve notifications."
+        );
+      }
+
+      setNotifications(
+        data.notifications || []
+      );
+    } catch (error) {
+      console.error(
+        "Fetch notifications error:",
+        error
+      );
+
+      setError(
+        error.message ||
+          "Unable to retrieve notifications."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
+
+  /*
+   * ==================================================
+   * UNREAD COUNT
+   * ==================================================
+   */
+
   const unreadCount = notifications.filter(
-    (notification) => !notification.read
+    (notification) => !notification.isRead
   ).length;
 
-  const filteredNotifications = notifications.filter(
-    (notification) => {
-      if (activeFilter === "all") return true;
+  /*
+   * ==================================================
+   * FILTER NOTIFICATIONS
+   * ==================================================
+   */
 
-      return notification.type === activeFilter;
+  const filteredNotifications =
+    notifications.filter((notification) => {
+      if (activeFilter === "all") {
+        return true;
+      }
+
+      return (
+        notification.type === activeFilter
+      );
+    });
+
+  /*
+   * ==================================================
+   * MARK NOTIFICATION AS READ
+   * ==================================================
+   */
+
+  const markAsRead = async (id) => {
+    try {
+      setProcessingId(id);
+
+      const response = await fetch(
+        `${API_URL}/notifications/${id}/read`,
+        {
+          method: "PATCH",
+          credentials: "include",
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message ||
+            "Unable to mark notification as read."
+        );
+      }
+
+      setNotifications((current) =>
+        current.map((notification) =>
+          notification._id === id
+            ? {
+                ...notification,
+                isRead: true,
+              }
+            : notification
+        )
+      );
+    } catch (error) {
+      console.error(
+        "Mark notification as read error:",
+        error
+      );
+
+      alert(
+        error.message ||
+          "Unable to mark notification as read."
+      );
+    } finally {
+      setProcessingId(null);
     }
-  );
+  };
 
-  const markAsRead = (id) => {
-    setNotifications((current) =>
-      current.map((notification) =>
-        notification.id === id
-          ? { ...notification, read: true }
-          : notification
-      )
+  /*
+   * ==================================================
+   * MARK ALL AS READ
+   * ==================================================
+   */
+
+  const markAllAsRead = async () => {
+    try {
+      setMarkingAll(true);
+
+      const response = await fetch(
+        `${API_URL}/notifications/read-all`,
+        {
+          method: "PATCH",
+          credentials: "include",
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message ||
+            "Unable to mark notifications as read."
+        );
+      }
+
+      setNotifications((current) =>
+        current.map((notification) => ({
+          ...notification,
+          isRead: true,
+        }))
+      );
+    } catch (error) {
+      console.error(
+        "Mark all notifications error:",
+        error
+      );
+
+      alert(
+        error.message ||
+          "Unable to mark notifications as read."
+      );
+    } finally {
+      setMarkingAll(false);
+    }
+  };
+
+  /*
+   * ==================================================
+   * DELETE NOTIFICATION
+   * ==================================================
+   */
+
+  const deleteNotification = async (id) => {
+    try {
+      setProcessingId(id);
+
+      const response = await fetch(
+        `${API_URL}/notifications/${id}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message ||
+            "Unable to delete notification."
+        );
+      }
+
+      setNotifications((current) =>
+        current.filter(
+          (notification) =>
+            notification._id !== id
+        )
+      );
+    } catch (error) {
+      console.error(
+        "Delete notification error:",
+        error
+      );
+
+      alert(
+        error.message ||
+          "Unable to delete notification."
+      );
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  /*
+   * ==================================================
+   * DELETE ALL NOTIFICATIONS
+   * ==================================================
+   */
+
+  const clearAllNotifications = async () => {
+    try {
+      setDeletingAll(true);
+
+      const response = await fetch(
+        `${API_URL}/notifications/clear-all`,
+        {
+          method: "DELETE",
+          credentials: "include",
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message ||
+            "Unable to clear notifications."
+        );
+      }
+
+      setNotifications([]);
+    } catch (error) {
+      console.error(
+        "Clear notifications error:",
+        error
+      );
+
+      alert(
+        error.message ||
+          "Unable to clear notifications."
+      );
+    } finally {
+      setDeletingAll(false);
+    }
+  };
+
+  /*
+   * ==================================================
+   * LOADING STATE
+   * ==================================================
+   */
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-[#f7f9f8] text-gray-900">
+        <section className="border-b border-gray-200 bg-white">
+          <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6 lg:px-8">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#16a765]/10 text-[#16a765]">
+                <Bell size={22} />
+              </div>
+
+              <div>
+                <p className="text-sm font-medium text-[#16a765]">
+                  Traveller Dashboard
+                </p>
+
+                <h1 className="mt-0.5 text-2xl font-bold tracking-tight sm:text-3xl">
+                  Notifications
+                </h1>
+              </div>
+            </div>
+
+            <p className="mt-4 max-w-2xl text-sm leading-6 text-gray-500 sm:text-base">
+              Stay updated about your bookings,
+              payments and TripGuard safety
+              protection.
+            </p>
+          </div>
+        </section>
+
+        <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+          <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center shadow-sm">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#16a765]/10">
+              <Loader2
+                size={22}
+                className="animate-spin text-[#16a765]"
+              />
+            </div>
+
+            <p className="mt-4 text-sm text-gray-500">
+              Loading your notifications...
+            </p>
+          </div>
+        </div>
+      </main>
     );
-  };
+  }
 
-  const markAllAsRead = () => {
-    setNotifications((current) =>
-      current.map((notification) => ({
-        ...notification,
-        read: true,
-      }))
+  /*
+   * ==================================================
+   * ERROR STATE
+   * ==================================================
+   */
+
+  if (error) {
+    return (
+      <main className="min-h-screen bg-[#f7f9f8] text-gray-900">
+        <section className="border-b border-gray-200 bg-white">
+          <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6 lg:px-8">
+            <p className="text-sm font-medium text-[#16a765]">
+              Traveller Dashboard
+            </p>
+
+            <h1 className="mt-0.5 text-2xl font-bold tracking-tight sm:text-3xl">
+              Notifications
+            </h1>
+          </div>
+        </section>
+
+        <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center">
+            <p className="text-sm font-medium text-red-600">
+              {error}
+            </p>
+
+            <button
+              type="button"
+              onClick={fetchNotifications}
+              className="mt-5 rounded-xl bg-[#16a765] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#128c55]"
+            >
+              Try again
+            </button>
+          </div>
+        </div>
+      </main>
     );
-  };
+  }
 
-  const deleteNotification = (id) => {
-    setNotifications((current) =>
-      current.filter((notification) => notification.id !== id)
-    );
-  };
-
-  const clearAllNotifications = () => {
-    setNotifications([]);
-  };
+  /*
+   * ==================================================
+   * MAIN UI
+   * ==================================================
+   */
 
   return (
     <main className="min-h-screen bg-[#f7f9f8] text-gray-900">
       {/* Header */}
+
       <section className="border-b border-gray-200 bg-white">
         <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
@@ -176,8 +439,9 @@ const TravellerNotificationsPage = () => {
               </div>
 
               <p className="mt-4 max-w-2xl text-sm leading-6 text-gray-500 sm:text-base">
-                Stay updated about your bookings, payments and
-                TripGuard safety protection.
+                Stay updated about your bookings,
+                payments and TripGuard safety
+                protection.
               </p>
             </div>
 
@@ -185,10 +449,21 @@ const TravellerNotificationsPage = () => {
               <button
                 type="button"
                 onClick={markAllAsRead}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                disabled={markingAll}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <CheckCheck size={17} />
-                Mark all as read
+                {markingAll ? (
+                  <Loader2
+                    size={17}
+                    className="animate-spin"
+                  />
+                ) : (
+                  <CheckCheck size={17} />
+                )}
+
+                {markingAll
+                  ? "Marking..."
+                  : "Mark all as read"}
               </button>
             )}
           </div>
@@ -197,6 +472,7 @@ const TravellerNotificationsPage = () => {
 
       <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Filters */}
+
         <div className="overflow-x-auto">
           <div className="flex min-w-max items-center gap-2 rounded-xl border border-gray-200 bg-white p-1.5">
             <FilterButton
@@ -214,7 +490,8 @@ const TravellerNotificationsPage = () => {
               onClick={setActiveFilter}
               count={
                 notifications.filter(
-                  (notification) => notification.type === "trip"
+                  (notification) =>
+                    notification.type === "trip"
                 ).length
               }
             />
@@ -247,7 +524,8 @@ const TravellerNotificationsPage = () => {
           </div>
         </div>
 
-        {/* Notification Summary */}
+        {/* Summary */}
+
         <div className="mt-6 flex items-center justify-between">
           <div>
             <p className="text-sm font-semibold">
@@ -272,37 +550,58 @@ const TravellerNotificationsPage = () => {
             <button
               type="button"
               onClick={clearAllNotifications}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 transition hover:text-red-500"
+              disabled={deletingAll}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 transition hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Trash2 size={14} />
-              Clear all
+              {deletingAll ? (
+                <Loader2
+                  size={14}
+                  className="animate-spin"
+                />
+              ) : (
+                <Trash2 size={14} />
+              )}
+
+              {deletingAll
+                ? "Clearing..."
+                : "Clear all"}
             </button>
           )}
         </div>
 
         {/* Notifications */}
+
         {filteredNotifications.length > 0 ? (
           <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-            {filteredNotifications.map((notification, index) => (
-              <NotificationItem
-                key={notification.id}
-                notification={notification}
-                isLast={
-                  index === filteredNotifications.length - 1
-                }
-                onRead={markAsRead}
-                onDelete={deleteNotification}
-              />
-            ))}
+            {filteredNotifications.map(
+              (notification, index) => (
+                <NotificationItem
+                  key={notification._id}
+                  notification={notification}
+                  isLast={
+                    index ===
+                    filteredNotifications.length - 1
+                  }
+                  onRead={markAsRead}
+                  onDelete={deleteNotification}
+                  processingId={processingId}
+                />
+              )
+            )}
           </div>
         ) : (
           <EmptyNotifications
-            hasNotifications={notifications.length > 0}
-            onReset={() => setActiveFilter("all")}
+            hasNotifications={
+              notifications.length > 0
+            }
+            onReset={() =>
+              setActiveFilter("all")
+            }
           />
         )}
 
         {/* Safety Reminder */}
+
         <section className="mt-8 rounded-2xl border border-[#16a765]/20 bg-[#16a765]/5 p-5 sm:p-6">
           <div className="flex gap-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#16a765]/10 text-[#16a765]">
@@ -315,9 +614,11 @@ const TravellerNotificationsPage = () => {
               </h2>
 
               <p className="mt-1 text-xs leading-5 text-gray-600 sm:text-sm">
-                TripGuard notifications help you keep track of your
-                booking and safety status. Always remember to check
-                in when you arrive and check out when you leave.
+                TripGuard notifications help you
+                keep track of your booking and safety
+                status. Always remember to check in
+                when you arrive and check out when you
+                leave.
               </p>
 
               <Link
@@ -334,6 +635,12 @@ const TravellerNotificationsPage = () => {
   );
 };
 
+/*
+ * ==================================================
+ * FILTER BUTTON
+ * ==================================================
+ */
+
 const FilterButton = ({
   label,
   value,
@@ -341,7 +648,8 @@ const FilterButton = ({
   onClick,
   count,
 }) => {
-  const isActive = activeFilter === value;
+  const isActive =
+    activeFilter === value;
 
   return (
     <button
@@ -368,12 +676,43 @@ const FilterButton = ({
   );
 };
 
+/*
+ * ==================================================
+ * NOTIFICATION ITEM
+ * ==================================================
+ */
+
 const NotificationItem = ({
   notification,
   isLast,
   onRead,
   onDelete,
+  processingId,
 }) => {
+  const getIcon = () => {
+    if (notification.type === "safety") {
+      return <ShieldCheck size={19} />;
+    }
+
+    if (notification.type === "payment") {
+      return <CreditCard size={19} />;
+    }
+
+    if (
+      notification.type === "check-in"
+    ) {
+      return <LogIn size={19} />;
+    }
+
+    if (
+      notification.type === "check-out"
+    ) {
+      return <LogOut size={19} />;
+    }
+
+    return <CheckCircle2 size={19} />;
+  };
+
   const getIconBackground = () => {
     if (notification.type === "safety") {
       return "bg-[#16a765]/10 text-[#16a765]";
@@ -386,31 +725,43 @@ const NotificationItem = ({
     return "bg-purple-50 text-purple-600";
   };
 
+  const isProcessing =
+    processingId === notification._id;
+
   return (
     <div
       className={`group relative flex gap-4 p-5 transition sm:p-6 ${
-        !notification.read ? "bg-[#16a765]/[0.025]" : "bg-white"
-      } ${!isLast ? "border-b border-gray-100" : ""}`}
+        !notification.isRead
+          ? "bg-[#16a765]/[0.025]"
+          : "bg-white"
+      } ${
+        !isLast
+          ? "border-b border-gray-100"
+          : ""
+      }`}
     >
       {/* Unread Indicator */}
-      {!notification.read && (
+
+      {!notification.isRead && (
         <span className="absolute left-2 top-7 h-2 w-2 rounded-full bg-[#16a765]" />
       )}
 
       {/* Icon */}
+
       <div
         className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${getIconBackground()}`}
       >
-        {notification.icon}
+        {getIcon()}
       </div>
 
       {/* Content */}
+
       <div className="min-w-0 flex-1">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h3
               className={`text-sm ${
-                notification.read
+                notification.isRead
                   ? "font-semibold text-gray-800"
                   : "font-bold text-gray-900"
               }`}
@@ -424,28 +775,47 @@ const NotificationItem = ({
           </div>
 
           <span className="shrink-0 text-[11px] text-gray-400">
-            {notification.time}
+            {formatNotificationTime(
+              notification.createdAt
+            )}
           </span>
         </div>
 
         {/* Actions */}
+
         <div className="mt-4 flex items-center gap-4">
-          {!notification.read && (
+          {!notification.isRead && (
             <button
               type="button"
-              onClick={() => onRead(notification.id)}
-              className="text-xs font-semibold text-[#16a765] hover:underline"
+              onClick={() =>
+                onRead(notification._id)
+              }
+              disabled={isProcessing}
+              className="text-xs font-semibold text-[#16a765] hover:underline disabled:opacity-50"
             >
-              Mark as read
+              {isProcessing
+                ? "Updating..."
+                : "Mark as read"}
             </button>
           )}
 
           <button
             type="button"
-            onClick={() => onDelete(notification.id)}
-            className="inline-flex items-center gap-1 text-xs font-semibold text-gray-400 transition hover:text-red-500"
+            onClick={() =>
+              onDelete(notification._id)
+            }
+            disabled={isProcessing}
+            className="inline-flex items-center gap-1 text-xs font-semibold text-gray-400 transition hover:text-red-500 disabled:opacity-50"
           >
-            <Trash2 size={13} />
+            {isProcessing ? (
+              <Loader2
+                size={13}
+                className="animate-spin"
+              />
+            ) : (
+              <Trash2 size={13} />
+            )}
+
             Remove
           </button>
         </div>
@@ -453,6 +823,12 @@ const NotificationItem = ({
     </div>
   );
 };
+
+/*
+ * ==================================================
+ * EMPTY STATE
+ * ==================================================
+ */
 
 const EmptyNotifications = ({
   hasNotifications,
@@ -490,6 +866,74 @@ const EmptyNotifications = ({
         </button>
       )}
     </section>
+  );
+};
+
+/*
+ * ==================================================
+ * FORMAT NOTIFICATION TIME
+ * ==================================================
+ */
+
+function formatNotificationTime(date) {
+  if (!date) {
+    return "";
+  }
+
+  const notificationDate =
+    new Date(date);
+
+  const now = new Date();
+
+  const difference =
+    now.getTime() -
+    notificationDate.getTime();
+
+  const seconds = Math.floor(
+    difference / 1000
+  );
+
+  if (seconds < 60) {
+    return "Just now";
+  }
+
+  const minutes = Math.floor(
+    seconds / 60
+  );
+
+  if (minutes < 60) {
+    return `${minutes} ${
+      minutes === 1 ? "minute" : "minutes"
+    } ago`;
+  }
+
+  const hours = Math.floor(
+    minutes / 60
+  );
+
+  if (hours < 24) {
+    return `${hours} ${
+      hours === 1 ? "hour" : "hours"
+    } ago`;
+  }
+
+  const days = Math.floor(
+    hours / 24
+  );
+
+  if (days < 7) {
+    return `${days} ${
+      days === 1 ? "day" : "days"
+    } ago`;
+  }
+
+  return notificationDate.toLocaleDateString(
+    "en-NG",
+    {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }
   );
 };
 

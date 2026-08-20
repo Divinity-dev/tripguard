@@ -91,7 +91,7 @@ const PaymentSuccessModal = ({
         </div>
 
         <Link
-          href="/customer/bookings"
+          href="/traveller/bookings"
           className="mt-6 flex w-full items-center justify-center rounded-xl bg-[#173C37] px-5 py-4 font-semibold text-white transition hover:bg-[#23584E]"
         >
           View my booking

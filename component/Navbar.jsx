@@ -62,13 +62,19 @@ const Navbar = () => {
   };
 
   return (
-    <header
-      className={`fixed left-0 top-0 z-50 w-full transition-all duration-300 ${
-        transparentNavbar
-          ? "bg-transparent"
-          : "bg-[#173C37] shadow-lg"
-      }`}
-    >
+   <header
+  className={`${
+    isHomePage
+      ? scrolled
+        ? "fixed"
+        : "absolute"
+      : "sticky"
+  } left-0 top-0 z-50 w-full transition-all duration-300 ${
+    transparentNavbar
+      ? "bg-transparent"
+      : "bg-[#173C37] shadow-lg"
+  }`}
+>
       <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
 
         {/* LOGO */}

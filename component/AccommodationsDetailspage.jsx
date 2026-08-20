@@ -3,7 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
+import API from "@/axios/index";
 import BookStayModal from "./BookStayModal";
 
 import {
@@ -26,12 +31,21 @@ import {
   Sparkles,
   LockKeyhole,
   Phone,
+  MessageCircle,
 } from "lucide-react";
 
 const AccommodationDetailPage = ({ slug }) => {
+  const queryClient = useQueryClient();
+
   const [activeImage, setActiveImage] = useState(0);
+  const [saving, setSaving] = useState(false);
   const [showGallery, setShowGallery] = useState(false);
   const [bookModalOpen, setBookModalOpen] = useState(false);
+  const [reviewRating, setReviewRating] = useState(0);
+const [reviewComment, setReviewComment] = useState("");
+const [reviewError, setReviewError] = useState("");
+const [reviewSuccess, setReviewSuccess] = useState("");
+const [hoveredRating, setHoveredRating] = useState(0);
 
   const API_URL =
     process.env.NEXT_PUBLIC_API_URL ||
@@ -62,16 +76,28 @@ const AccommodationDetailPage = ({ slug }) => {
   };
 
   const {
-    data: accommodation,
-    isLoading,
-    isError,
-    error,
-  } = useQuery({
-    queryKey: ["accommodation", slug],
-    queryFn: fetchAccommodation,
-    enabled: Boolean(slug),
-    staleTime: 1000 * 60 * 5,
-  });
+  data: savedData,
+  isLoading: savedLoading,
+} = useQuery({
+  queryKey: ["savedAccommodations"],
+  queryFn: async () => {
+    try {
+      const response = await API.get("/saved");
+
+      return response.data;
+    } catch (error) {
+      if (error.response?.status === 401) {
+        return {
+          savedAccommodations: [],
+        };
+      }
+
+      throw error;
+    }
+  },
+  retry: false,
+  staleTime: 1000 * 60 * 5,
+});
 
   const nextImage = () => {
     if (!accommodation?.images?.length) return;
@@ -129,6 +155,175 @@ const AccommodationDetailPage = ({ slug }) => {
 
     return Sparkles;
   };
+
+  const {
+  data: accommodation,
+  isLoading,
+  isError,
+  error,
+} = useQuery({
+  queryKey: ["accommodation", slug],
+  queryFn: fetchAccommodation,
+  enabled: !!slug,
+});
+
+const {
+  data: reviewsData,
+  isLoading: reviewsLoading,
+} = useQuery({
+  queryKey: ["accommodationReviews", accommodation?._id],
+  queryFn: async () => {
+    const response = await API.get(
+      `/reviews/accommodation/${accommodation._id}`
+    );
+
+    return response.data;
+  },
+  enabled: !!accommodation?._id,
+});
+
+const isSaved =
+  savedData?.savedAccommodations?.some((savedItem) => {
+    const savedAccommodation =
+      savedItem?.accommodation;
+
+    const savedAccommodationId =
+      typeof savedAccommodation === "object"
+        ? savedAccommodation?._id
+        : savedAccommodation;
+
+    return (
+      savedAccommodationId === accommodation?._id
+    );
+  }) || false;
+
+  const saveMutation = useMutation({
+  mutationFn: async () => {
+    const response = await API.post(
+      `/saved/${accommodation._id}`
+    );
+
+    return response.data;
+  },
+
+  onSuccess: () => {
+    queryClient.invalidateQueries({
+      queryKey: ["savedAccommodations"],
+    });
+  },
+});
+
+const removeMutation = useMutation({
+  mutationFn: async () => {
+    const response = await API.delete(
+      `/saved/${accommodation._id}`
+    );
+
+    return response.data;
+  },
+
+  onSuccess: () => {
+    queryClient.invalidateQueries({
+      queryKey: ["savedAccommodations"],
+    });
+  },
+});
+
+const reviewMutation = useMutation({
+  mutationFn: async () => {
+    const response = await API.post("/reviews", {
+      accommodation: accommodation._id,
+      rating: reviewRating,
+      comment: reviewComment.trim(),
+    });
+
+    return response.data;
+  },
+
+  onSuccess: () => {
+    setReviewSuccess("Your review has been submitted successfully.");
+    setReviewError("");
+    setReviewRating(0);
+    setReviewComment("");
+
+    queryClient.invalidateQueries({
+      queryKey: ["accommodationReviews", accommodation._id],
+    });
+
+    queryClient.invalidateQueries({
+      queryKey: ["accommodation", slug],
+    });
+  },
+
+  onError: (error) => {
+    setReviewSuccess("");
+
+    const status = error.response?.status;
+    const message = error.response?.data?.message;
+
+    if (status === 403) {
+      setReviewError(
+        "You can only review this accommodation after completing a stay."
+      );
+      return;
+    }
+
+    if (status === 409) {
+      setReviewError(
+        "You have already reviewed this accommodation."
+      );
+      return;
+    }
+
+    setReviewError(
+      message || "Unable to submit your review. Please try again."
+    );
+  },
+});
+
+const handleReviewSubmit = (event) => {
+  event.preventDefault();
+
+  setReviewError("");
+  setReviewSuccess("");
+
+  if (!reviewRating) {
+    setReviewError("Please select a rating.");
+    return;
+  }
+
+  if (!reviewComment.trim()) {
+    setReviewError("Please write a comment.");
+    return;
+  }
+
+  if (reviewComment.trim().length < 5) {
+    setReviewError(
+      "Your review should contain at least 5 characters."
+    );
+    return;
+  }
+
+  reviewMutation.mutate();
+};
+
+const toggleSaved = async () => {
+  if (!accommodation?._id) {
+    return;
+  }
+
+  try {
+    setSaving(true);
+
+    if (isSaved) {
+      await removeMutation.mutateAsync();
+    } else {
+      await saveMutation.mutateAsync();
+    }
+  } finally {
+    setSaving(false);
+  }
+};
 
   if (isLoading) {
     return (
@@ -188,9 +383,9 @@ const AccommodationDetailPage = ({ slug }) => {
     ? accommodation.amenities
     : [];
 
-  const reviewsList = Array.isArray(accommodation.reviewsList)
-    ? accommodation.reviewsList
-    : [];
+  const reviewsList = Array.isArray(reviewsData?.reviews)
+  ? reviewsData.reviews
+  : [];
 
   const rules = Array.isArray(accommodation.rules)
     ? accommodation.rules
@@ -220,14 +415,16 @@ const AccommodationDetailPage = ({ slug }) => {
     .join(", ");
 
   const rating =
-    accommodation.averageRating ||
-    accommodation.rating ||
-    0;
+  reviewsData?.averageRating ??
+  accommodation.averageRating ??
+  accommodation.rating ??
+  0;
 
-  const reviewCount =
-    accommodation.reviewCount ||
-    accommodation.reviews ||
-    0;
+const reviewCount =
+  reviewsData?.count ??
+  accommodation.totalReviews ??
+  accommodation.reviewCount ??
+  0;
 
   const price = accommodation.pricePerNight;
 
@@ -262,13 +459,22 @@ const AccommodationDetailPage = ({ slug }) => {
             Back to accommodations
           </Link>
 
-          <button
-            type="button"
-            className="flex items-center gap-2 rounded-full border border-[#E2E1DA] bg-white px-4 py-2 text-sm font-medium transition hover:bg-[#F7F6F0]"
-          >
-            <Heart className="h-4 w-4" />
-            Save
-          </button>
+        <button
+  type="button"
+  onClick={toggleSaved}
+  disabled={saving}
+  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-[#173C37] bg-white shadow-md transition hover:bg-[#E1F5ED] disabled:cursor-not-allowed disabled:opacity-60"
+  aria-label={isSaved ? "Remove from saved" : "Save accommodation"}
+  title={isSaved ? "Remove from saved" : "Save accommodation"}
+>
+  <Heart
+    className={`h-6 w-6 ${
+      isSaved
+        ? "fill-[#397A69] text-[#397A69]"
+        : "text-[#173C37]"
+    }`}
+  />
+</button>
 
         </div>
       </div>
@@ -577,92 +783,438 @@ const AccommodationDetailPage = ({ slug }) => {
             </section>
 
             {/* REVIEWS */}
-            <section className="border-b border-[#E1E0D9] py-10">
+            {/* REVIEWS */}
+<section className="border-b border-[#E1E0D9] py-10">
 
-              <div className="flex items-center gap-2">
+  {/* HEADER */}
+  <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
 
-                <Star className="h-5 w-5 fill-[#F3C95D] text-[#F3C95D]" />
+    <div>
 
-                <span className="text-xl font-bold">
-                  {rating > 0 ? rating.toFixed(1) : "New"}
+      <div className="flex items-center gap-2">
+
+        <Star className="h-5 w-5 fill-[#F3C95D] text-[#F3C95D]" />
+
+        <span className="text-xl font-bold">
+          {rating > 0 ? Number(rating).toFixed(1) : "New"}
+        </span>
+
+        <span className="text-sm text-[#7A8581]">
+          · {reviewCount}{" "}
+          {reviewCount === 1 ? "review" : "reviews"}
+        </span>
+
+      </div>
+
+      <h2 className="mt-3 text-2xl font-semibold">
+        What guests are saying
+      </h2>
+
+    </div>
+
+    {reviewCount > 0 && (
+      <div className="flex items-center gap-2 rounded-xl bg-[#E1F5ED] px-4 py-3">
+
+        <ShieldCheck className="h-4 w-4 text-[#277765]" />
+
+        <span className="text-xs font-semibold text-[#277765]">
+          Verified guest reviews
+        </span>
+
+      </div>
+    )}
+
+  </div>
+
+  {/* RATING SUMMARY */}
+  {reviewCount > 0 && reviewsList.length > 0 && (
+
+    <div className="mt-8 rounded-[24px] border border-[#E5E4DD] bg-white p-6">
+
+      <div className="grid gap-8 sm:grid-cols-[150px_1fr]">
+
+        {/* OVERALL */}
+        <div className="flex flex-col items-center justify-center border-b border-[#ECEBE5] pb-6 sm:border-b-0 sm:border-r sm:pb-0">
+
+          <p className="text-5xl font-bold text-[#173C37]">
+            {Number(rating).toFixed(1)}
+          </p>
+
+          <div className="mt-3 flex gap-1">
+
+            {[1, 2, 3, 4, 5].map((star) => (
+              <Star
+                key={star}
+                className={`h-4 w-4 ${
+                  star <= Math.round(rating)
+                    ? "fill-[#F3C95D] text-[#F3C95D]"
+                    : "text-[#D9DDD9]"
+                }`}
+              />
+            ))}
+
+          </div>
+
+          <p className="mt-2 text-xs text-[#7A8581]">
+            Based on {reviewCount}{" "}
+            {reviewCount === 1 ? "review" : "reviews"}
+          </p>
+
+        </div>
+
+        {/* BREAKDOWN */}
+        <div className="space-y-3">
+
+          {[5, 4, 3, 2, 1].map((star) => {
+
+            const count = reviewsList.filter(
+              (review) => Number(review.rating) === star
+            ).length;
+
+            const percentage =
+              reviewCount > 0
+                ? (count / reviewCount) * 100
+                : 0;
+
+            return (
+              <div
+                key={star}
+                className="flex items-center gap-3"
+              >
+
+                <div className="flex w-10 items-center gap-1">
+
+                  <span className="text-xs font-semibold text-[#596661]">
+                    {star}
+                  </span>
+
+                  <Star className="h-3 w-3 fill-[#F3C95D] text-[#F3C95D]" />
+
+                </div>
+
+                <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#E8EBE8]">
+
+                  <div
+                    className="h-full rounded-full bg-[#397A69] transition-all"
+                    style={{
+                      width: `${percentage}%`,
+                    }}
+                  />
+
+                </div>
+
+                <span className="w-8 text-right text-xs text-[#7A8581]">
+                  {count}
                 </span>
 
-                <span className="text-sm text-[#7A8581]">
-                  · {reviewCount} reviews
+              </div>
+            );
+          })}
+
+        </div>
+
+      </div>
+
+    </div>
+
+  )}
+
+  {/* REVIEW FORM */}
+  <div className="mt-8 rounded-[24px] border border-[#DDE8E3] bg-[#F0F7F4] p-6 sm:p-7">
+
+    <div className="flex gap-4">
+
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#173C37]">
+        <MessageCircle className="h-5 w-5 text-[#63E6BE]" />
+      </div>
+
+      <div>
+
+        <h3 className="text-lg font-semibold text-[#173C37]">
+          Share your experience
+        </h3>
+
+        <p className="mt-1 text-sm text-[#6E7B76]">
+          Stayed here? Tell other travellers what you thought.
+        </p>
+
+      </div>
+
+    </div>
+
+    <form
+      onSubmit={handleReviewSubmit}
+      className="mt-6"
+    >
+
+      {/* RATING */}
+      <div>
+
+        <label className="text-sm font-semibold text-[#173C37]">
+          Your rating
+        </label>
+
+        <div className="mt-3 flex items-center gap-2">
+
+          {[1, 2, 3, 4, 5].map((star) => {
+
+            const active =
+              star <= (hoveredRating || reviewRating);
+
+            return (
+              <button
+                key={star}
+                type="button"
+                onClick={() => setReviewRating(star)}
+                onMouseEnter={() => setHoveredRating(star)}
+                onMouseLeave={() => setHoveredRating(0)}
+                className="rounded-lg p-1 transition hover:bg-white"
+                aria-label={`Rate ${star} out of 5`}
+              >
+
+                <Star
+                  className={`h-7 w-7 transition ${
+                    active
+                      ? "fill-[#F3C95D] text-[#F3C95D]"
+                      : "text-[#B9C2BE]"
+                  }`}
+                />
+
+              </button>
+            );
+          })}
+
+          {reviewRating > 0 && (
+            <span className="ml-2 text-sm font-semibold text-[#397A69]">
+              {reviewRating}/5
+            </span>
+          )}
+
+        </div>
+
+      </div>
+
+      {/* COMMENT */}
+      <div className="mt-6">
+
+        <label
+          htmlFor="review-comment"
+          className="text-sm font-semibold text-[#173C37]"
+        >
+          Your review
+        </label>
+
+        <textarea
+          id="review-comment"
+          value={reviewComment}
+          onChange={(event) => {
+            setReviewComment(event.target.value);
+            setReviewError("");
+            setReviewSuccess("");
+          }}
+          maxLength={1000}
+          rows={5}
+          placeholder="Tell us about your stay..."
+          className="mt-3 w-full resize-none rounded-2xl border border-[#D8E0DC] bg-white px-4 py-3 text-sm text-[#172322] outline-none transition placeholder:text-[#9AA39F] focus:border-[#397A69] focus:ring-2 focus:ring-[#397A69]/10"
+        />
+
+        <div className="mt-2 flex justify-end">
+
+          <span className="text-xs text-[#8A9390]">
+            {reviewComment.length}/1000
+          </span>
+
+        </div>
+
+      </div>
+
+      {/* ERROR */}
+      {reviewError && (
+        <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {reviewError}
+        </div>
+      )}
+
+      {/* SUCCESS */}
+      {reviewSuccess && (
+        <div className="mt-4 rounded-xl border border-[#BFE6D5] bg-[#E8F8F1] px-4 py-3 text-sm font-medium text-[#277765]">
+          {reviewSuccess}
+        </div>
+      )}
+
+      {/* SUBMIT */}
+      <button
+        type="submit"
+        disabled={reviewMutation.isPending}
+        className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-[#173C37] px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-[#23584E] disabled:cursor-not-allowed disabled:opacity-60"
+      >
+
+        {reviewMutation.isPending ? (
+          <>
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+            Submitting...
+          </>
+        ) : (
+          <>
+            <Star className="h-4 w-4 text-[#63E6BE]" />
+            Submit review
+          </>
+        )}
+
+      </button>
+
+      <p className="mt-3 text-xs leading-5 text-[#7A8581]">
+        Only guests who have completed a stay can submit a review.
+      </p>
+
+    </form>
+
+  </div>
+
+  {/* REVIEWS LIST */}
+  <div className="mt-8">
+
+    {reviewsLoading ? (
+
+      <div className="flex items-center justify-center py-12">
+
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#DDE8E3] border-t-[#397A69]" />
+
+      </div>
+
+    ) : reviewsList.length > 0 ? (
+
+      <div className="space-y-5">
+
+        {reviewsList.map((review) => {
+
+          const firstName =
+            review.user?.firstName || "";
+
+          const lastName =
+            review.user?.lastName || "";
+
+          const fullName =
+            `${firstName} ${lastName}`.trim() ||
+            "TripGuard guest";
+
+          const initials =
+            `${firstName?.[0] || ""}${lastName?.[0] || ""}`
+              .toUpperCase() || "G";
+
+          const reviewDate = review.createdAt
+            ? new Date(review.createdAt).toLocaleDateString(
+                "en-NG",
+                {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                }
+              )
+            : "";
+
+          return (
+            <article
+              key={review._id}
+              className="rounded-2xl border border-[#E5E4DD] bg-white p-6"
+            >
+
+              <div className="flex items-start justify-between gap-4">
+
+                <div className="flex items-center gap-3">
+
+                  {review.user?.profileImage ? (
+
+                    <div className="relative h-11 w-11 overflow-hidden rounded-full">
+
+                      <Image
+                        src={review.user.profileImage}
+                        alt={fullName}
+                        fill
+                        className="object-cover"
+                      />
+
+                    </div>
+
+                  ) : (
+
+                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#173C37] text-sm font-semibold text-[#63E6BE]">
+                      {initials}
+                    </div>
+
+                  )}
+
+                  <div>
+
+                    <p className="font-semibold text-[#172322]">
+                      {fullName}
+                    </p>
+
+                    <p className="mt-0.5 text-xs text-[#7A8581]">
+                      Verified guest
+                    </p>
+
+                  </div>
+
+                </div>
+
+                <span className="text-xs text-[#8A9390]">
+                  {reviewDate}
                 </span>
 
               </div>
 
-              <h2 className="mt-3 text-2xl font-semibold">
-                What guests are saying
-              </h2>
+              {/* STARS */}
+              <div className="mt-4 flex gap-1">
 
-              {reviewsList.length > 0 ? (
-                <div className="mt-8 space-y-6">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Star
+                    key={star}
+                    className={`h-3.5 w-3.5 ${
+                      star <= Number(review.rating)
+                        ? "fill-[#F3C95D] text-[#F3C95D]"
+                        : "text-[#D9DDD9]"
+                    }`}
+                  />
+                ))}
 
-                  {reviewsList.map((review, index) => (
-                    <article
-                      key={`${review.name || "review"}-${index}`}
-                      className="rounded-2xl border border-[#E5E4DD] bg-white p-6"
-                    >
+              </div>
 
-                      <div className="flex items-start justify-between gap-4">
+              {/* COMMENT */}
+              <p className="mt-4 text-sm leading-7 text-[#596661]">
+                “{review.comment}”
+              </p>
 
-                        <div className="flex items-center gap-3">
+            </article>
+          );
+        })}
 
-                          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#173C37] text-sm font-semibold text-[#63E6BE]">
-                            {review.initials ||
-                              review.name
-                                ?.split(" ")
-                                .map((part) => part[0])
-                                .join("")
-                                .slice(0, 2)}
-                          </div>
+      </div>
 
-                          <div>
+    ) : (
 
-                            <p className="font-semibold">
-                              {review.name}
-                            </p>
+      <div className="rounded-[24px] border border-dashed border-[#CDD8D3] bg-white p-10 text-center">
 
-                            <p className="mt-0.5 text-xs text-[#7A8581]">
-                              {review.location || ""}
-                            </p>
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#E1F5ED]">
+          <MessageCircle className="h-6 w-6 text-[#397A69]" />
+        </div>
 
-                          </div>
+        <h3 className="mt-4 text-lg font-semibold text-[#173C37]">
+          No reviews yet
+        </h3>
 
-                        </div>
+        <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#7A8581]">
+          Be the first guest to share your experience after
+          completing a stay at this accommodation.
+        </p>
 
-                        <span className="text-xs text-[#8A9390]">
-                          {review.date}
-                        </span>
+      </div>
 
-                      </div>
+    )}
 
-                      <div className="mt-4 flex gap-1">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <Star
-                            key={star}
-                            className="h-3.5 w-3.5 fill-[#F3C95D] text-[#F3C95D]"
-                          />
-                        ))}
-                      </div>
+  </div>
 
-                      <p className="mt-4 text-sm leading-7 text-[#596661]">
-                        “{review.text}”
-                      </p>
-
-                    </article>
-                  ))}
-
-                </div>
-              ) : (
-                <p className="mt-6 text-sm text-[#7A8581]">
-                  No reviews yet.
-                </p>
-              )}
-
-            </section>
+</section>
 
             {/* LOCATION */}
             <section className="border-b border-[#E1E0D9] py-10">

@@ -1,79 +1,327 @@
-
 "use client";
 
 import {
   ArrowLeft,
-  Bell,
   Check,
   ChevronRight,
   Edit3,
   Mail,
-  MapPin,
   Phone,
   ShieldCheck,
   User,
   Lock,
-  Heart,
   Save,
+  X,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import API from "@/axios/index";
 
 const TravellerProfilePage = () => {
   const [profile, setProfile] = useState({
-    firstName: "Divine",
-    lastName: "Asiriuwa",
-    email: "divine@example.com",
-    phone: "+234 801 234 5678",
-    location: "Lagos, Nigeria",
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
   });
 
-  const [safetyContact, setSafetyContact] = useState({
-    name: "Sarah Johnson",
-    email: "sarah@example.com",
-    phone: "+234 809 876 5432",
-    relationship: "Sister",
-  });
+  const [isEditingProfile, setIsEditingProfile] =
+    useState(false);
 
-  const [notifications, setNotifications] = useState({
-    bookingUpdates: true,
-    safetyUpdates: true,
-    paymentUpdates: true,
-    promotional: false,
-  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [isEditingSafety, setIsEditingSafety] = useState(false);
+  const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
 
-  const handleProfileChange = (field, value) => {
+  const [isChangingPassword, setIsChangingPassword] =
+  useState(false);
+
+const [passwordData, setPasswordData] = useState({
+  currentPassword: "",
+  newPassword: "",
+  confirmPassword: "",
+});
+
+const [showCurrentPassword, setShowCurrentPassword] =
+  useState(false);
+
+const [showNewPassword, setShowNewPassword] =
+  useState(false);
+
+const [showConfirmPassword, setShowConfirmPassword] =
+  useState(false);
+
+const [passwordLoading, setPasswordLoading] =
+  useState(false);
+
+const [passwordError, setPasswordError] =
+  useState("");
+
+const [passwordSuccess, setPasswordSuccess] =
+  useState(false);
+
+  const handlePasswordChange = (field, value) => {
+  setPasswordData((current) => ({
+    ...current,
+    [field]: value,
+  }));
+};
+
+const handleChangePassword = async () => {
+  setPasswordError("");
+  setPasswordSuccess(false);
+
+  const {
+    currentPassword,
+    newPassword,
+    confirmPassword,
+  } = passwordData;
+
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    setPasswordError(
+      "Please fill in all password fields."
+    );
+
+    return;
+  }
+
+  if (newPassword.length < 6) {
+    setPasswordError(
+      "New password must be at least 6 characters."
+    );
+
+    return;
+  }
+
+  if (newPassword !== confirmPassword) {
+    setPasswordError(
+      "New passwords do not match."
+    );
+
+    return;
+  }
+
+  if (currentPassword === newPassword) {
+    setPasswordError(
+      "Your new password must be different from your current password."
+    );
+
+    return;
+  }
+
+  try {
+    setPasswordLoading(true);
+
+    const response = await API.put(
+      "/users/change-password",
+      {
+        currentPassword,
+        newPassword,
+      }
+    );
+
+    if (response.data?.success) {
+      setPasswordSuccess(true);
+
+      setPasswordData({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+
+      setShowCurrentPassword(false);
+      setShowNewPassword(false);
+      setShowConfirmPassword(false);
+
+      setTimeout(() => {
+        setIsChangingPassword(false);
+        setPasswordSuccess(false);
+      }, 2000);
+    }
+  } catch (error) {
+    console.error(
+      "Change password error:",
+      error
+    );
+
+    setPasswordError(
+      error.response?.data?.message ||
+        "Unable to change your password."
+    );
+  } finally {
+    setPasswordLoading(false);
+  }
+};
+
+  /*
+   * ------------------------------------------
+   * FETCH LOGGED-IN USER
+   * ------------------------------------------
+   */
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        setLoading(true);
+        setError("");
+
+        const response = await API.get("/users/profile");
+
+        if (response.data?.success) {
+          const user = response.data.user;
+
+          setProfile({
+            firstName: user.firstName || "",
+            lastName: user.lastName || "",
+            email: user.email || "",
+            phone: user.phone || "",
+          });
+        }
+      } catch (error) {
+        console.error(
+          "Fetch profile error:",
+          error
+        );
+
+        setError(
+          error.response?.data?.message ||
+            "Unable to load your profile."
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, []);
+
+  /*
+   * ------------------------------------------
+   * PROFILE CHANGE
+   * ------------------------------------------
+   */
+
+  const handleProfileChange = (
+    field,
+    value
+  ) => {
     setProfile((current) => ({
       ...current,
       [field]: value,
     }));
   };
 
-  const handleSafetyChange = (field, value) => {
-    setSafetyContact((current) => ({
-      ...current,
-      [field]: value,
-    }));
-  };
+  /*
+   * ------------------------------------------
+   * SAVE PROFILE
+   * ------------------------------------------
+   */
 
-  const handleNotificationChange = (field) => {
-    setNotifications((current) => ({
-      ...current,
-      [field]: !current[field],
-    }));
-  };
-
-  const handleSave = () => {
-    setSaved(true);
-
-    setTimeout(() => {
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      setError("");
       setSaved(false);
-    }, 2500);
+
+      const response = await API.put(
+        "/users/profile",
+        {
+          firstName: profile.firstName,
+          lastName: profile.lastName,
+          phone: profile.phone,
+        }
+      );
+
+      if (response.data?.success) {
+        const user = response.data.user;
+
+        /*
+         * Replace local state with the exact
+         * data returned by the backend.
+         */
+        setProfile({
+          firstName: user.firstName || "",
+          lastName: user.lastName || "",
+          email: user.email || "",
+          phone: user.phone || "",
+        });
+
+        setIsEditingProfile(false);
+        setSaved(true);
+
+        setTimeout(() => {
+          setSaved(false);
+        }, 2500);
+      }
+    } catch (error) {
+      console.error(
+        "Update profile error:",
+        error
+      );
+
+      setError(
+        error.response?.data?.message ||
+          "Unable to update your profile."
+      );
+    } finally {
+      setSaving(false);
+    }
   };
+
+  /*
+   * ------------------------------------------
+   * LOADING STATE
+   * ------------------------------------------
+   */
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-[#f7f9f8] text-gray-900">
+        <section className="border-b border-gray-200 bg-white">
+          <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6 lg:px-8">
+            <div className="flex items-center gap-3">
+              <Link
+                href="/dashboard/traveller"
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 text-gray-500 transition hover:bg-gray-50 hover:text-gray-900"
+                aria-label="Back to dashboard"
+              >
+                <ArrowLeft size={18} />
+              </Link>
+
+              <div>
+                <p className="text-sm font-medium text-[#16a765]">
+                  Traveller Dashboard
+                </p>
+
+                <h1 className="mt-0.5 text-2xl font-bold tracking-tight sm:text-3xl">
+                  Profile & Safety
+                </h1>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+          <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
+            <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-gray-200 border-t-[#16a765]" />
+
+            <p className="mt-4 text-sm text-gray-500">
+              Loading your profile...
+            </p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  /*
+   * ------------------------------------------
+   * PAGE
+   * ------------------------------------------
+   */
 
   return (
     <main className="min-h-screen bg-[#f7f9f8] text-gray-900">
@@ -101,13 +349,20 @@ const TravellerProfilePage = () => {
           </div>
 
           <p className="mt-4 max-w-2xl text-sm leading-6 text-gray-500 sm:text-base">
-            Manage your personal information, safety contact and
-            TripGuard notification preferences.
+            Manage your personal information and account
+            security.
           </p>
         </div>
       </section>
 
       <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+        {/* Error */}
+        {error && (
+          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+            {error}
+          </div>
+        )}
+
         {/* Save Notification */}
         {saved && (
           <div className="mb-6 flex items-center gap-3 rounded-xl border border-[#16a765]/20 bg-[#16a765]/5 px-4 py-3 text-sm font-medium text-[#128c55]">
@@ -125,12 +380,14 @@ const TravellerProfilePage = () => {
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-4">
                 <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#16a765] text-xl font-bold text-white">
-                  DA
+                  {profile.firstName?.charAt(0)}
+                  {profile.lastName?.charAt(0)}
                 </div>
 
                 <div>
                   <h2 className="text-lg font-bold">
-                    {profile.firstName} {profile.lastName}
+                    {profile.firstName}{" "}
+                    {profile.lastName}
                   </h2>
 
                   <p className="mt-1 text-sm text-gray-500">
@@ -142,13 +399,18 @@ const TravellerProfilePage = () => {
               <button
                 type="button"
                 onClick={() =>
-                  setIsEditingProfile((current) => !current)
+                  setIsEditingProfile(
+                    (current) => !current
+                  )
                 }
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                disabled={saving}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Edit3 size={16} />
 
-                {isEditingProfile ? "Cancel" : "Edit profile"}
+                {isEditingProfile
+                  ? "Cancel"
+                  : "Edit profile"}
               </button>
             </div>
           </div>
@@ -161,7 +423,10 @@ const TravellerProfilePage = () => {
                 value={profile.firstName}
                 editing={isEditingProfile}
                 onChange={(value) =>
-                  handleProfileChange("firstName", value)
+                  handleProfileChange(
+                    "firstName",
+                    value
+                  )
                 }
               />
 
@@ -171,7 +436,10 @@ const TravellerProfilePage = () => {
                 value={profile.lastName}
                 editing={isEditingProfile}
                 onChange={(value) =>
-                  handleProfileChange("lastName", value)
+                  handleProfileChange(
+                    "lastName",
+                    value
+                  )
                 }
               />
 
@@ -179,11 +447,7 @@ const TravellerProfilePage = () => {
                 icon={<Mail size={17} />}
                 label="Email address"
                 value={profile.email}
-                editing={isEditingProfile}
-                type="email"
-                onChange={(value) =>
-                  handleProfileChange("email", value)
-                }
+                editing={false}
               />
 
               <ProfileField
@@ -192,17 +456,10 @@ const TravellerProfilePage = () => {
                 value={profile.phone}
                 editing={isEditingProfile}
                 onChange={(value) =>
-                  handleProfileChange("phone", value)
-                }
-              />
-
-              <ProfileField
-                icon={<MapPin size={17} />}
-                label="Location"
-                value={profile.location}
-                editing={isEditingProfile}
-                onChange={(value) =>
-                  handleProfileChange("location", value)
+                  handleProfileChange(
+                    "phone",
+                    value
+                  )
                 }
               />
             </div>
@@ -211,134 +468,21 @@ const TravellerProfilePage = () => {
               <div className="mt-6 flex justify-end">
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsEditingProfile(false);
-                    handleSave();
-                  }}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#16a765] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#128c55]"
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#16a765] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#128c55] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <Save size={16} />
-                  Save profile
-                </button>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* Safety Section */}
-        <section className="mt-8 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-          <div className="border-b border-gray-100 px-5 py-5 sm:px-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex gap-4">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#16a765]/10 text-[#16a765]">
-                  <ShieldCheck size={22} />
-                </div>
-
-                <div>
-                  <h2 className="text-lg font-bold">
-                    TripGuard Safety Contact
-                  </h2>
-
-                  <p className="mt-1 text-sm leading-5 text-gray-500">
-                    This person receives important updates about your
-                    trip.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 self-start rounded-full bg-[#16a765]/10 px-3 py-1.5 text-xs font-semibold text-[#128c55]">
-                <span className="h-2 w-2 rounded-full bg-[#16a765]" />
-                Protection Active
-              </div>
-            </div>
-          </div>
-
-          <div className="p-5 sm:p-6">
-            <div className="rounded-2xl border border-[#16a765]/20 bg-[#16a765]/5 p-5">
-              <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                    Current safety contact
-                  </p>
-
-                  <h3 className="mt-1 text-lg font-bold">
-                    {safetyContact.name}
-                  </h3>
-
-                  <p className="mt-1 text-sm text-gray-500">
-                    {safetyContact.relationship}
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setIsEditingSafety((current) => !current)
-                  }
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
-                >
-                  <Edit3 size={16} />
-
-                  {isEditingSafety ? "Cancel" : "Edit contact"}
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-5 grid gap-5 sm:grid-cols-2">
-              <ProfileField
-                icon={<User size={17} />}
-                label="Full name"
-                value={safetyContact.name}
-                editing={isEditingSafety}
-                onChange={(value) =>
-                  handleSafetyChange("name", value)
-                }
-              />
-
-              <ProfileField
-                icon={<Heart size={17} />}
-                label="Relationship"
-                value={safetyContact.relationship}
-                editing={isEditingSafety}
-                onChange={(value) =>
-                  handleSafetyChange("relationship", value)
-                }
-              />
-
-              <ProfileField
-                icon={<Mail size={17} />}
-                label="Email address"
-                value={safetyContact.email}
-                editing={isEditingSafety}
-                type="email"
-                onChange={(value) =>
-                  handleSafetyChange("email", value)
-                }
-              />
-
-              <ProfileField
-                icon={<Phone size={17} />}
-                label="Phone number"
-                value={safetyContact.phone}
-                editing={isEditingSafety}
-                onChange={(value) =>
-                  handleSafetyChange("phone", value)
-                }
-              />
-            </div>
-
-            {isEditingSafety && (
-              <div className="mt-6 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsEditingSafety(false);
-                    handleSave();
-                  }}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#16a765] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#128c55]"
-                >
-                  <Save size={16} />
-                  Save safety contact
+                  {saving ? (
+                    <>
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save size={16} />
+                      Save profile
+                    </>
+                  )}
                 </button>
               </div>
             )}
@@ -358,8 +502,8 @@ const TravellerProfilePage = () => {
               </h2>
 
               <p className="mt-2 text-sm leading-6 text-gray-400">
-                TripGuard helps keep someone you trust informed while
-                you travel.
+                TripGuard helps keep someone you trust informed
+                while you travel.
               </p>
             </div>
           </div>
@@ -368,90 +512,20 @@ const TravellerProfilePage = () => {
             <ProtectionStep
               number="01"
               title="Book your stay"
-              description="Choose your accommodation and provide your safety contact."
+              description="Choose your accommodation and provide the email address of someone you trust."
             />
 
             <ProtectionStep
               number="02"
               title="Check in"
-              description="Check in when you arrive to activate your protected stay."
+              description="Check in when you arrive and TripGuard sends your safety contact the check-in information."
             />
 
             <ProtectionStep
               number="03"
               title="Check out"
-              description="Check out when you leave and your safety contact receives the final update."
+              description="Check out when you leave and TripGuard sends your safety contact the final update."
             />
-          </div>
-        </section>
-
-        {/* Notification Preferences */}
-        <section className="mt-8 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-          <div className="border-b border-gray-100 p-5 sm:p-6">
-            <div className="flex items-center gap-4">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                <Bell size={21} />
-              </div>
-
-              <div>
-                <h2 className="text-lg font-bold">
-                  Notification Preferences
-                </h2>
-
-                <p className="mt-1 text-sm text-gray-500">
-                  Choose the updates you want to receive.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="divide-y divide-gray-100">
-            <NotificationSetting
-              title="Booking updates"
-              description="Receive updates about your reservations and trips."
-              checked={notifications.bookingUpdates}
-              onChange={() =>
-                handleNotificationChange("bookingUpdates")
-              }
-            />
-
-            <NotificationSetting
-              title="Safety updates"
-              description="Receive important TripGuard protection notifications."
-              checked={notifications.safetyUpdates}
-              onChange={() =>
-                handleNotificationChange("safetyUpdates")
-              }
-            />
-
-            <NotificationSetting
-              title="Payment updates"
-              description="Receive payment confirmations and transaction updates."
-              checked={notifications.paymentUpdates}
-              onChange={() =>
-                handleNotificationChange("paymentUpdates")
-              }
-            />
-
-            <NotificationSetting
-              title="Promotional updates"
-              description="Receive offers, recommendations and TripGuard news."
-              checked={notifications.promotional}
-              onChange={() =>
-                handleNotificationChange("promotional")
-              }
-            />
-          </div>
-
-          <div className="flex justify-end border-t border-gray-100 p-5 sm:p-6">
-            <button
-              type="button"
-              onClick={handleSave}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#16a765] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#128c55]"
-            >
-              <Save size={16} />
-              Save preferences
-            </button>
           </div>
         </section>
 
@@ -469,24 +543,173 @@ const TravellerProfilePage = () => {
                 </h2>
 
                 <p className="mt-1 text-sm text-gray-500">
-                  Manage your password and account security.
+                  Manage your account password and security.
                 </p>
               </div>
             </div>
 
-            <div className="mt-5 divide-y divide-gray-100 rounded-xl border border-gray-200">
+            <div className="mt-5 rounded-xl border border-gray-200">
               <SecurityRow
-                title="Change password"
-                description="Update your account password."
-              />
-
-              <SecurityRow
-                title="Login activity"
-                description="Review recent activity on your account."
-              />
+  title="Change password"
+  description="Update your account password."
+  onClick={() => {
+    setPasswordError("");
+    setPasswordSuccess(false);
+    setIsChangingPassword(true);
+  }}
+/>
             </div>
           </div>
         </section>
+
+        {isChangingPassword && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-6">
+    <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
+      {/* Modal Header */}
+      <div className="flex items-center justify-between border-b border-gray-100 px-5 py-5 sm:px-6">
+        <div>
+          <h2 className="text-lg font-bold text-gray-900">
+            Change password
+          </h2>
+
+          <p className="mt-1 text-sm text-gray-500">
+            Choose a new password for your account.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            if (!passwordLoading) {
+              setIsChangingPassword(false);
+              setPasswordError("");
+            }
+          }}
+          disabled={passwordLoading}
+          className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label="Close"
+        >
+          <X size={19} />
+        </button>
+      </div>
+
+      {/* Modal Body */}
+      <div className="p-5 sm:p-6">
+        {passwordError && (
+          <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+            {passwordError}
+          </div>
+        )}
+
+        {passwordSuccess && (
+          <div className="mb-5 flex items-center gap-3 rounded-xl border border-[#16a765]/20 bg-[#16a765]/5 px-4 py-3 text-sm font-medium text-[#128c55]">
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#16a765] text-white">
+              <Check size={15} />
+            </div>
+
+            Password changed successfully.
+          </div>
+        )}
+
+        <div className="space-y-5">
+          <PasswordField
+            label="Current password"
+            value={passwordData.currentPassword}
+            onChange={(value) =>
+              handlePasswordChange(
+                "currentPassword",
+                value
+              )
+            }
+            visible={showCurrentPassword}
+            onToggle={() =>
+              setShowCurrentPassword(
+                (current) => !current
+              )
+            }
+            disabled={passwordLoading}
+          />
+
+          <PasswordField
+            label="New password"
+            value={passwordData.newPassword}
+            onChange={(value) =>
+              handlePasswordChange(
+                "newPassword",
+                value
+              )
+            }
+            visible={showNewPassword}
+            onToggle={() =>
+              setShowNewPassword(
+                (current) => !current
+              )
+            }
+            disabled={passwordLoading}
+          />
+
+          <PasswordField
+            label="Confirm new password"
+            value={passwordData.confirmPassword}
+            onChange={(value) =>
+              handlePasswordChange(
+                "confirmPassword",
+                value
+              )
+            }
+            visible={showConfirmPassword}
+            onToggle={() =>
+              setShowConfirmPassword(
+                (current) => !current
+              )
+            }
+            disabled={passwordLoading}
+          />
+        </div>
+
+        <p className="mt-4 text-xs leading-5 text-gray-500">
+          Your password must be at least 6 characters long.
+        </p>
+
+        {/* Actions */}
+        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={() => {
+              if (!passwordLoading) {
+                setIsChangingPassword(false);
+                setPasswordError("");
+              }
+            }}
+            disabled={passwordLoading}
+            className="rounded-xl border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            onClick={handleChangePassword}
+            disabled={passwordLoading}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#16a765] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#128c55] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {passwordLoading ? (
+              <>
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                Updating...
+              </>
+            ) : (
+              <>
+                <Save size={16} />
+                Change password
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
         {/* Back to Dashboard */}
         <div className="mt-8 flex justify-center">
@@ -526,16 +749,20 @@ const ProfileField = ({
           <input
             type={type}
             value={value}
-            onChange={(event) => onChange(event.target.value)}
+            onChange={(event) =>
+              onChange(event.target.value)
+            }
             className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-10 pr-4 text-sm outline-none transition focus:border-[#16a765] focus:ring-2 focus:ring-[#16a765]/10"
           />
         </div>
       ) : (
         <div className="flex min-h-12 items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
-          <span className="text-gray-400">{icon}</span>
+          <span className="text-gray-400">
+            {icon}
+          </span>
 
           <span className="text-sm font-medium text-gray-800">
-            {value}
+            {value || "Not provided"}
           </span>
         </div>
       )}
@@ -543,39 +770,50 @@ const ProfileField = ({
   );
 };
 
-const NotificationSetting = ({
-  title,
-  description,
-  checked,
+const PasswordField = ({
+  label,
+  value,
   onChange,
+  visible,
+  onToggle,
+  disabled,
 }) => {
   return (
-    <div className="flex items-center justify-between gap-5 p-5 sm:p-6">
-      <div>
-        <h3 className="text-sm font-semibold text-gray-900">
-          {title}
-        </h3>
+    <div>
+      <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+        {label}
+      </label>
 
-        <p className="mt-1 max-w-xl text-xs leading-5 text-gray-500 sm:text-sm">
-          {description}
-        </p>
-      </div>
-
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        onClick={onChange}
-        className={`relative h-6 w-11 shrink-0 rounded-full transition ${
-          checked ? "bg-[#16a765]" : "bg-gray-300"
-        }`}
-      >
-        <span
-          className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition ${
-            checked ? "left-6" : "left-1"
-          }`}
+      <div className="relative">
+        <input
+          type={visible ? "text" : "password"}
+          value={value}
+          onChange={(event) =>
+            onChange(event.target.value)
+          }
+          disabled={disabled}
+          autoComplete="off"
+          className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-4 pr-11 text-sm outline-none transition focus:border-[#16a765] focus:ring-2 focus:ring-[#16a765]/10 disabled:cursor-not-allowed disabled:bg-gray-50"
         />
-      </button>
+
+        <button
+          type="button"
+          onClick={onToggle}
+          disabled={disabled}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 transition hover:text-gray-700 disabled:cursor-not-allowed"
+          aria-label={
+            visible
+              ? `Hide ${label}`
+              : `Show ${label}`
+          }
+        >
+          {visible ? (
+            <EyeOff size={18} />
+          ) : (
+            <Eye size={18} />
+          )}
+        </button>
+      </div>
     </div>
   );
 };
@@ -591,7 +829,9 @@ const ProtectionStep = ({
         {number}
       </span>
 
-      <h3 className="mt-3 text-sm font-bold">{title}</h3>
+      <h3 className="mt-3 text-sm font-bold">
+        {title}
+      </h3>
 
       <p className="mt-2 text-xs leading-5 text-gray-400">
         {description}
@@ -600,10 +840,15 @@ const ProtectionStep = ({
   );
 };
 
-const SecurityRow = ({ title, description }) => {
+const SecurityRow = ({
+  title,
+  description,
+  onClick,
+}) => {
   return (
     <button
       type="button"
+      onClick={onClick}
       className="flex w-full items-center justify-between gap-4 p-4 text-left transition hover:bg-gray-50"
     >
       <div>

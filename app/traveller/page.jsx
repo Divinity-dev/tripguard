@@ -24,6 +24,10 @@ export default function TravellerDashboard() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [savedAccommodations, setSavedAccommodations] =
+  useState([]);
+const [savedLoading, setSavedLoading] =
+  useState(true);
 
   const [showCheckInModal, setShowCheckInModal] =
     useState(false);
@@ -43,11 +47,61 @@ export default function TravellerDashboard() {
   (state) => state.auth
 );
 
-  /*
-   * --------------------------------------------------
-   * FETCH BOOKINGS
-   * --------------------------------------------------
-   */
+ /*
+ * --------------------------------------------------
+ * FETCH SAVED ACCOMMODATIONS
+ * --------------------------------------------------
+ */
+
+  const fetchSavedAccommodations = async () => {
+  try {
+    setSavedLoading(true);
+
+    const apiUrl =
+      process.env.NEXT_PUBLIC_API_URL;
+
+    if (!apiUrl) {
+      throw new Error(
+        "NEXT_PUBLIC_API_URL is not configured"
+      );
+    }
+
+    const response = await fetch(
+      `${apiUrl}/saved`,
+      {
+        method: "GET",
+        credentials: "include",
+      }
+    );
+
+    const data = await response.json();
+
+    console.log(
+      "Saved accommodations response:",
+      data
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        data.message ||
+          "Unable to retrieve saved accommodations"
+      );
+    }
+
+    setSavedAccommodations(
+      data.savedAccommodations || []
+    );
+  } catch (error) {
+    console.error(
+      "Fetch saved accommodations error:",
+      error
+    );
+
+    setSavedAccommodations([]);
+  } finally {
+    setSavedLoading(false);
+  }
+};
 
   const fetchBookings = async () => {
     try {
@@ -101,9 +155,10 @@ export default function TravellerDashboard() {
     }
   };
 
-  useEffect(() => {
-    fetchBookings();
-  }, []);
+ useEffect(() => {
+  fetchBookings();
+  fetchSavedAccommodations();
+}, []);
 
   /*
    * --------------------------------------------------
@@ -447,11 +502,11 @@ export default function TravellerDashboard() {
             />
 
             <StatCard
-              icon={<Heart size={20} />}
-              title="Saved"
-              value="6"
-              description="Saved stays"
-            />
+  icon={<Heart size={20} />}
+  title="Saved"
+  value={savedLoading ? "..." : savedAccommodations.length}
+  description="Saved stays"
+/>
           </section>
 
           {/* Main Content */}
@@ -837,31 +892,40 @@ export default function TravellerDashboard() {
                 </div>
 
                 <div className="mt-5 space-y-5">
-                  <ActivityItem
-                    icon={
-                      <CheckCircle2
-                        size={17}
-                      />
-                    }
-                    title="Booking confirmed"
-                    description="The Meridian House"
-                    time="2 days ago"
-                  />
+  {savedLoading ? (
+    <p className="text-sm text-gray-500">
+      Loading recent activity...
+    </p>
+  ) : savedAccommodations.length > 0 ? (
+    <ActivityItem
+      icon={<Heart size={17} />}
+      title="Accommodation saved"
+      description={
+        savedAccommodations[0]?.accommodation?.name ||
+        "Accommodation"
+      }
+      time="Recently"
+    />
+  ) : (
+    <div className="py-4 text-center">
+      <Heart
+        size={22}
+        className="mx-auto text-gray-300"
+      />
 
-                  <ActivityItem
-                    icon={<Star size={17} />}
-                    title="Review submitted"
-                    description="Palm Court Residence"
-                    time="1 week ago"
-                  />
+      <p className="mt-2 text-sm font-medium text-gray-500">
+        No saved accommodations yet
+      </p>
 
-                  <ActivityItem
-                    icon={<Heart size={17} />}
-                    title="Accommodation saved"
-                    description="Cedar View Suites"
-                    time="2 weeks ago"
-                  />
-                </div>
+      <Link
+        href="/accommodations"
+        className="mt-2 inline-flex text-xs font-semibold text-[#16a765]"
+      >
+        Find a stay
+      </Link>
+    </div>
+  )}
+</div>
               </div>
             </div>
           </section>
