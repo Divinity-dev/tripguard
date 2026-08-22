@@ -2,7 +2,6 @@ import { createSlice } from "@reduxjs/toolkit";
 
 const initialState = {
   user: null,
-  token: null,
   isAuthenticated: false,
 
   loading: false,
@@ -30,17 +29,17 @@ const authSlice = createSlice({
       state.message = null;
     },
 
+    // =========================
+    // Forgot Password Success
+    // =========================
 
-    // =========================
-    // Authentication Success
-    // =========================
     forgotPasswordSuccess: (state, action) => {
-  state.loading = false;
-  state.error = null;
-  state.message =
-    action.payload?.message ||
-    "Password reset OTP sent successfully.";
-},
+      state.loading = false;
+      state.error = null;
+      state.message =
+        action.payload?.message ||
+        "Password reset OTP sent successfully.";
+    },
 
     // =========================
     // Authentication Success
@@ -51,9 +50,7 @@ const authSlice = createSlice({
       state.error = null;
 
       state.user = action.payload.user || null;
-      state.token = action.payload.token || null;
-
-      state.isAuthenticated = true;
+      state.isAuthenticated = !!action.payload.user;
 
       state.message = action.payload.message || null;
     },
@@ -76,14 +73,7 @@ const authSlice = createSlice({
     setUser: (state, action) => {
       state.user = action.payload;
       state.isAuthenticated = !!action.payload;
-    },
-
-    // =========================
-    // Set Token
-    // =========================
-
-    setToken: (state, action) => {
-      state.token = action.payload;
+      state.loading = false;
     },
 
     // =========================
@@ -141,7 +131,6 @@ const authSlice = createSlice({
 
     logout: (state) => {
       state.user = null;
-      state.token = null;
       state.isAuthenticated = false;
 
       state.loading = false;
@@ -159,7 +148,6 @@ export const {
   authSuccess,
   authFailure,
   setUser,
-  setToken,
   clearAuthError,
   clearAuthMessage,
   setResetEmail,

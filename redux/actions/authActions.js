@@ -9,10 +9,8 @@ import {
   setResetEmail,
   otpVerificationSuccess,
   resetPasswordSuccess,
-  forgotPasswordSuccess
+  forgotPasswordSuccess,
 } from "../slices/authSlice";
-
-
 
 // =========================
 // Register
@@ -22,11 +20,10 @@ export const registerUser = (formData) => async (dispatch) => {
   try {
     dispatch(authRequestStart());
 
-    const response = await API.post(
-      "/auth/register",
-      formData
-    );
+    const response = await API.post("/auth/register", formData);
 
+    // Authentication is handled by the HTTP-only cookie
+    // set by the backend. No token is stored in localStorage.
     dispatch(authSuccess(response.data));
 
     return response.data;
@@ -54,6 +51,8 @@ export const loginUser = (credentials) => async (dispatch) => {
       credentials
     );
 
+    // Authentication cookie is set by the backend.
+    // No JWT is stored in localStorage.
     dispatch(authSuccess(response.data));
 
     return response.data;
@@ -80,9 +79,12 @@ export const getCurrentUser = () => async (dispatch) => {
 
     return response.data;
   } catch (error) {
-    dispatch(logout());
+    console.error(
+      "Failed to get current user:",
+      error.response?.data || error.message
+    );
 
-    throw error;
+    return null;
   }
 };
 
@@ -96,12 +98,14 @@ export const logoutUser = () => async (dispatch) => {
 
     const response = await API.post("/auth/logout");
 
+    // Backend clears the authentication cookie.
+    // Redux authentication state is cleared here.
     dispatch(logout());
 
     return response.data;
   } catch (error) {
-    // Even if the server logout fails,
-    // clear the local authentication state.
+    // Clear local Redux authentication state even if
+    // the server-side logout request fails.
     dispatch(logout());
 
     throw error;

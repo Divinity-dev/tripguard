@@ -3,10 +3,15 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { getStatesData } from "nigeria-state-lga-data";
 import BookStayModal from "./BookStayModal";
+import API from "@/axios/index";
 
 import {
   Search,
@@ -83,13 +88,13 @@ const getAccommodationId = (accommodation) => {
 };
 
 const getAccommodationHref = (accommodation) => {
-  const id = getAccommodationId(accommodation);
+  const slug = accommodation?.slug;
 
-  if (!id) {
+  if (!slug) {
     return "/accommodations";
   }
 
-  return `/accommodations/${id}`;
+  return `/accommodations/${slug}`;
 };
 
 const getAccommodationImage = (accommodation) => {
@@ -138,6 +143,8 @@ const getAccommodationLocation = (accommodation) => {
 const AccommodationsPage = () => {
   const searchParams = useSearchParams();
 
+  const queryClient = useQueryClient();
+
   const urlState = searchParams.get("state") || "";
   const urlCity = searchParams.get("city") || "";
   const urlLga = searchParams.get("lga") || "";
@@ -162,12 +169,85 @@ const [limit] = useState(12);
 
   const [showFilters, setShowFilters] = useState(false);
 
-  const [saved, setSaved] = useState([]);
-
   const [selectedAccommodation, setSelectedAccommodation] =
     useState(null);
+const [savingAccommodationId, setSavingAccommodationId] =
+  useState(null);
 
   const [bookModalOpen, setBookModalOpen] = useState(false);
+
+  const {
+  data: savedData,
+  isLoading: savedLoading,
+} = useQuery({
+  queryKey: ["savedAccommodations"],
+  queryFn: async () => {
+    try {
+      const response = await API.get("/saved");
+
+      return response.data;
+    } catch (error) {
+      // Logged-out users cannot access saved accommodations.
+      // We simply treat them as having no saved accommodations.
+      if (error.response?.status === 401) {
+        return {
+          savedAccommodations: [],
+        };
+      }
+
+      throw error;
+    }
+  },
+  retry: false,
+  staleTime: 1000 * 60 * 5,
+});
+
+const savedAccommodationIds = useMemo(() => {
+  const savedAccommodations =
+    savedData?.savedAccommodations || [];
+
+  return new Set(
+    savedAccommodations
+      .map((savedItem) =>
+        getAccommodationId(
+          savedItem.accommodation
+        )
+      )
+      .filter(Boolean)
+  );
+}, [savedData]);
+
+const saveMutation = useMutation({
+  mutationFn: async (accommodationId) => {
+    const response = await API.post(
+      `/saved/${accommodationId}`
+    );
+
+    return response.data;
+  },
+
+  onSuccess: () => {
+    queryClient.invalidateQueries({
+      queryKey: ["savedAccommodations"],
+    });
+  },
+});
+
+const removeMutation = useMutation({
+  mutationFn: async (accommodationId) => {
+    const response = await API.delete(
+      `/saved/${accommodationId}`
+    );
+
+    return response.data;
+  },
+
+  onSuccess: () => {
+    queryClient.invalidateQueries({
+      queryKey: ["savedAccommodations"],
+    });
+  },
+});
 
   useEffect(() => {
   setPage(1);
@@ -298,19 +378,30 @@ const pagination = data?.pagination;
 
  
 
-  const toggleSaved = (id) => {
-    if (!id) {
-      return;
-    }
+const toggleSaved = async (accommodationId) => {
+  if (!accommodationId) {
+    return;
+  }
 
-    setSaved((current) =>
-      current.includes(id)
-        ? current.filter(
-            (item) => item !== id
-          )
-        : [...current, id]
-    );
-  };
+  const isSaved =
+    savedAccommodationIds.has(accommodationId);
+
+  try {
+    setSavingAccommodationId(accommodationId);
+
+    if (isSaved) {
+      await removeMutation.mutateAsync(
+        accommodationId
+      );
+    } else {
+      await saveMutation.mutateAsync(
+        accommodationId
+      );
+    }
+  } finally {
+    setSavingAccommodationId(null);
+  }
+};
 
   const clearFilters = () => {
     setSearch("");
@@ -804,9 +895,9 @@ available
                     );
 
                   const isSaved =
-                    saved.includes(
-                      accommodationId
-                    );
+  savedAccommodationIds.has(
+    accommodationId
+  );
 
                   const image =
                     getAccommodationImage(
@@ -870,28 +961,34 @@ available
                         </div>
 
                         {/* SAVE */}
-                        <button
-                          type="button"
-                          onClick={() =>
-                            toggleSaved(
-                              accommodationId
-                            )
-                          }
-                          className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/95 shadow-sm transition hover:scale-105"
-                          aria-label={
-                            isSaved
-                              ? "Remove from saved"
-                              : "Save accommodation"
-                          }
-                        >
-                          <Heart
-                            className={`h-5 w-5 ${
-                              isSaved
-                                ? "fill-[#397A69] text-[#397A69]"
-                                : "text-[#173C37]"
-                            }`}
-                          />
-                        </button>
+                   <button
+  type="button"
+  onClick={() =>
+    toggleSaved(accommodationId)
+  }
+  disabled={
+    savingAccommodationId === accommodationId
+  }
+  className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/95 shadow-sm transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-70"
+  aria-label={
+    isSaved
+      ? "Remove from saved"
+      : "Save accommodation"
+  }
+>
+  <Heart
+    className={`h-5 w-5 transition ${
+      isSaved
+        ? "fill-[#397A69] text-[#397A69]"
+        : "text-[#173C37]"
+    } ${
+      savingAccommodationId ===
+      accommodationId
+        ? "animate-pulse"
+        : ""
+    }`}
+  />
+</button>
 
                       </div>
 

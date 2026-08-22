@@ -61,13 +61,13 @@ icon: BarChart3,
 },
 ];
 
-const bottomNavigation = [
-{
-label: "Settings",
-href: "/admin/settings",
-icon: Settings,
-},
-];
+// const bottomNavigation = [
+// {
+// label: "Settings",
+// href: "/admin/settings",
+// icon: Settings,
+// },
+// ];
 
 const AdminSidebar = () => {
 const pathname = usePathname();
@@ -183,7 +183,7 @@ aria-label="Open admin menu"
         System
       </p>
 
-      <nav className="space-y-1">
+      {/* <nav className="space-y-1">
         {bottomNavigation.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.href);
@@ -207,7 +207,7 @@ aria-label="Open admin menu"
             </Link>
           );
         })}
-      </nav>
+      </nav> */}
     </div>
 
     <div className="border-t border-gray-100 p-4">

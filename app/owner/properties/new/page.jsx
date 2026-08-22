@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+
 import {
   ArrowLeft,
   ArrowRight,
@@ -24,11 +26,12 @@ import {
   Refrigerator,
   CookingPot,
   LockKeyhole,
+  Loader2,
 } from "lucide-react";
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:5000/api";
+import { getStatesData } from "nigeria-state-lga-data";
+
+import API from "@/axios/index";
 
 const CLOUDINARY_CLOUD_NAME =
   process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
@@ -36,18 +39,61 @@ const CLOUDINARY_CLOUD_NAME =
 const CLOUDINARY_UPLOAD_PRESET =
   process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
 
+/*
+|--------------------------------------------------------------------------
+| PROPERTY TYPES
+|--------------------------------------------------------------------------
+| These values MUST match the Accommodation mongoose enum.
+*/
+
 const propertyTypes = [
-  "Luxury Hotel",
-  "Boutique Hotel",
-  "Serviced Apartment",
-  "Apartment",
-  "Short-let Apartment",
-  "Guest House",
-  "Resort",
-  "Villa",
-  "Lodge",
-  "Other",
+  {
+    value: "hotel",
+    label: "Luxury Hotel",
+  },
+  {
+    value: "hotel",
+    label: "Boutique Hotel",
+  },
+  {
+    value: "apartment",
+    label: "Serviced Apartment",
+  },
+  {
+    value: "apartment",
+    label: "Apartment",
+  },
+  {
+    value: "short-let",
+    label: "Short-let Apartment",
+  },
+  {
+    value: "guest-house",
+    label: "Guest House",
+  },
+  {
+    value: "resort",
+    label: "Resort",
+  },
+  {
+    value: "villa",
+    label: "Villa",
+  },
+  {
+    value: "other",
+    label: "Lodge",
+  },
+  {
+    value: "other",
+    label: "Other",
+  },
 ];
+
+/*
+|--------------------------------------------------------------------------
+| AMENITIES
+|--------------------------------------------------------------------------
+*/
 
 const amenities = [
   {
@@ -112,6 +158,22 @@ const amenities = [
   },
 ];
 
+/*
+|--------------------------------------------------------------------------
+| NIGERIAN LOCATION DATA
+|--------------------------------------------------------------------------
+*/
+
+const statesData = getStatesData();
+
+/*
+|--------------------------------------------------------------------------
+| DEFAULT HOUSE RULES
+|--------------------------------------------------------------------------
+| These are currently UI-only because your Accommodation schema
+| does not contain a rules field.
+*/
+
 const defaultRules = [
   "Check-in from 2:00 PM",
   "Check-out before 12:00 PM",
@@ -120,39 +182,332 @@ const defaultRules = [
   "Valid identification required",
 ];
 
-export default function ListPropertyPage() {
-  const [formData, setFormData] = useState({
-    propertyName: "",
-    propertyType: "",
-    state: "",
-    city: "",
-    lga: "",
-    address: "",
-    website: "",
-    description: "",
-    price: "",
-    guests: "2",
-    bedrooms: "1",
-    beds: "1",
-    bathrooms: "1",
-    checkInTime: "2:00 PM",
-    checkOutTime: "12:00 PM",
-  });
+/*
+|--------------------------------------------------------------------------
+| INITIAL FORM
+|--------------------------------------------------------------------------
+*/
 
-  const [selectedAmenities, setSelectedAmenities] = useState([]);
+const initialFormData = {
+  propertyName: "",
+  propertyType: "",
+  state: "",
+  city: "",
+  lga: "",
+  address: "",
+  website: "",
+  description: "",
+  price: "",
+  guests: "2",
+  bedrooms: "1",
+  bathrooms: "1",
+  checkInTime: "14:00",
+  checkOutTime: "12:00",
+};
 
-  const [rules, setRules] = useState(defaultRules);
+/*
+|--------------------------------------------------------------------------
+| PAGE
+|--------------------------------------------------------------------------
+*/
 
-  const [newRule, setNewRule] = useState("");
+const ListPropertyPage = () => {
+  const searchParams = useSearchParams();
 
-  const [images, setImages] = useState([]);
+  /*
+   * If edit exists, we are editing an accommodation.
+   */
+  const editId = searchParams.get("id");
 
-  const [errors, setErrors] = useState({});
+  const isEditMode = Boolean(editId);
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  /*
+   * FORM STATE
+   */
+
+  const [formData, setFormData] =
+    useState(initialFormData);
+
+  const [selectedAmenities, setSelectedAmenities] =
+    useState([]);
+
+  const [rules, setRules] =
+    useState(defaultRules);
+
+  const [newRule, setNewRule] =
+    useState("");
+
+  /*
+   * Images contain two possible types:
+   *
+   * Existing:
+   * {
+   *   id,
+   *   url,
+   *   isExisting: true
+   * }
+   *
+   * New:
+   * {
+   *   id,
+   *   file,
+   *   preview,
+   *   isExisting: false
+   * }
+   */
+
+  const [images, setImages] =
+    useState([]);
+
+  const [errors, setErrors] =
+    useState({});
+
+  const [isSubmitting, setIsSubmitting] =
+    useState(false);
+
+  const [isLoadingProperty, setIsLoadingProperty] =
+    useState(isEditMode);
+
+  /*
+   * Existing property information.
+   */
+  const [propertyStatus, setPropertyStatus] =
+    useState("");
+
+  /*
+  |--------------------------------------------------------------------------
+  | SELECTED STATE
+  |--------------------------------------------------------------------------
+  */
+
+  const selectedState = useMemo(
+    () =>
+      statesData.find(
+        (state) => state.name === formData.state
+      ),
+    [formData.state]
+  );
+
+  /*
+  |--------------------------------------------------------------------------
+  | CITIES
+  |--------------------------------------------------------------------------
+  */
+
+  const availableCities =
+    selectedState?.towns || [];
+
+  /*
+  |--------------------------------------------------------------------------
+  | LGAs
+  |--------------------------------------------------------------------------
+  */
+
+  const availableLgas =
+    selectedState?.lgas || [];
+
+  /*
+  |--------------------------------------------------------------------------
+  | FETCH PROPERTY FOR EDIT
+  |--------------------------------------------------------------------------
+  */
+
+  useEffect(() => {
+    if (!isEditMode || !editId) {
+      setIsLoadingProperty(false);
+      return;
+    }
+
+    const fetchProperty = async () => {
+      setIsLoadingProperty(true);
+
+      try {
+        /*
+         * This assumes your backend exposes:
+         *
+         * GET /accommodations/:id
+         *
+         * If your controller returns the accommodation
+         * directly or inside another property, the helper
+         * below handles common response structures.
+         */
+
+       const response = await API.get(
+  `/accommodations/owner/${editId}`
+);
+
+        const data = response.data;
+
+        const accommodation =
+          data.accommodation ||
+          data.data ||
+          data.property ||
+          data;
+
+        if (!accommodation) {
+          throw new Error(
+            "Accommodation could not be found."
+          );
+        }
+
+        /*
+         * PREFILL BASIC INFORMATION
+         */
+
+        setFormData({
+          propertyName:
+            accommodation.name || "",
+
+          propertyType:
+            accommodation.type || "",
+
+          state:
+            accommodation.location?.state || "",
+
+          city:
+            accommodation.location?.city || "",
+
+          lga:
+            accommodation.location?.lga || "",
+
+          address:
+            accommodation.location?.address || "",
+
+          website:
+            accommodation.propertyWebsite || "",
+
+          description:
+            accommodation.description || "",
+
+          price:
+            accommodation.pricePerNight !== undefined &&
+            accommodation.pricePerNight !== null
+              ? String(
+                  accommodation.pricePerNight
+                )
+              : "",
+
+          guests:
+            accommodation.maxGuests !== undefined &&
+            accommodation.maxGuests !== null
+              ? String(
+                  accommodation.maxGuests
+                )
+              : "2",
+
+          bedrooms:
+            accommodation.bedrooms !== undefined &&
+            accommodation.bedrooms !== null
+              ? String(
+                  accommodation.bedrooms
+                )
+              : "1",
+
+          bathrooms:
+            accommodation.bathrooms !== undefined &&
+            accommodation.bathrooms !== null
+              ? String(
+                  accommodation.bathrooms
+                )
+              : "1",
+
+          checkInTime:
+            accommodation.checkInTime ||
+            "14:00",
+
+          checkOutTime:
+            accommodation.checkOutTime ||
+            "12:00",
+        });
+
+        /*
+         * AMENITIES
+         */
+
+        setSelectedAmenities(
+          Array.isArray(
+            accommodation.amenities
+          )
+            ? accommodation.amenities
+            : []
+        );
+
+        /*
+         * IMAGES
+         */
+
+        const existingImages = Array.isArray(
+          accommodation.images
+        )
+          ? accommodation.images
+          : [];
+
+        setImages(
+          existingImages.map(
+            (url, index) => ({
+              id: `existing-${index}-${url}`,
+              url,
+              isExisting: true,
+            })
+          )
+        );
+
+        /*
+         * STATUS
+         */
+
+        setPropertyStatus(
+          accommodation.status || ""
+        );
+
+        /*
+         * HOUSE RULES
+         *
+         * Currently the schema does not contain rules.
+         * If an older document has rules, we can still display
+         * them. Otherwise use the defaults.
+         */
+
+        if (
+          Array.isArray(accommodation.rules)
+        ) {
+          setRules(accommodation.rules);
+        } else {
+          setRules([...defaultRules]);
+        }
+      } catch (error) {
+        console.error(
+          "Fetch accommodation error:",
+          error
+        );
+
+        const message =
+          error.response?.data?.message ||
+          error.message ||
+          "Unable to load this property.";
+
+        setErrors({
+          submit: message,
+        });
+      } finally {
+        setIsLoadingProperty(false);
+      }
+    };
+
+    fetchProperty();
+  }, [editId, isEditMode]);
+
+  /*
+  |--------------------------------------------------------------------------
+  | HANDLE NORMAL INPUTS
+  |--------------------------------------------------------------------------
+  */
 
   const handleChange = (event) => {
-    const { name, value } = event.target;
+    const {
+      name,
+      value,
+    } = event.target;
 
     setFormData((current) => ({
       ...current,
@@ -167,11 +522,103 @@ export default function ListPropertyPage() {
     }
   };
 
-  const toggleAmenity = (amenityId) => {
-    setSelectedAmenities((current) =>
-      current.includes(amenityId)
-        ? current.filter((item) => item !== amenityId)
-        : [...current, amenityId]
+  /*
+  |--------------------------------------------------------------------------
+  | STATE CHANGE
+  |--------------------------------------------------------------------------
+  */
+
+  const handleStateChange = (
+    event
+  ) => {
+    const { value } =
+      event.target;
+
+    setFormData((current) => ({
+      ...current,
+      state: value,
+      city: "",
+      lga: "",
+    }));
+
+    setErrors((current) => ({
+      ...current,
+      state: "",
+      city: "",
+      lga: "",
+    }));
+  };
+
+  /*
+  |--------------------------------------------------------------------------
+  | CITY CHANGE
+  |--------------------------------------------------------------------------
+  */
+
+  const handleCityChange = (
+    event
+  ) => {
+    const { value } =
+      event.target;
+
+    setFormData((current) => ({
+      ...current,
+      city: value,
+      lga: "",
+    }));
+
+    setErrors((current) => ({
+      ...current,
+      city: "",
+      lga: "",
+    }));
+  };
+
+  /*
+  |--------------------------------------------------------------------------
+  | LGA CHANGE
+  |--------------------------------------------------------------------------
+  */
+
+  const handleLgaChange = (
+    event
+  ) => {
+    const { value } =
+      event.target;
+
+    setFormData((current) => ({
+      ...current,
+      lga: value,
+    }));
+
+    if (errors.lga) {
+      setErrors((current) => ({
+        ...current,
+        lga: "",
+      }));
+    }
+  };
+
+  /*
+  |--------------------------------------------------------------------------
+  | TOGGLE AMENITY
+  |--------------------------------------------------------------------------
+  */
+
+  const toggleAmenity = (
+    amenityId
+  ) => {
+    setSelectedAmenities(
+      (current) =>
+        current.includes(amenityId)
+          ? current.filter(
+              (item) =>
+                item !== amenityId
+            )
+          : [
+              ...current,
+              amenityId,
+            ]
     );
 
     if (errors.amenities) {
@@ -182,22 +629,51 @@ export default function ListPropertyPage() {
     }
   };
 
-  const handleImageUpload = (event) => {
-    const files = Array.from(event.target.files || []);
+  /*
+  |--------------------------------------------------------------------------
+  | IMAGE SELECTION
+  |--------------------------------------------------------------------------
+  */
 
-    if (!files.length) return;
+  const handleImageUpload = (
+    event
+  ) => {
+    const files = Array.from(
+      event.target.files || []
+    );
 
-    const remainingSlots = 10 - images.length;
+    if (!files.length) {
+      return;
+    }
 
-    const selectedFiles = files.slice(0, remainingSlots);
+    const remainingSlots =
+      10 - images.length;
 
-    const imageObjects = selectedFiles.map((file) => ({
-      id: `${file.name}-${file.lastModified}-${Math.random()}`,
-      file,
-      preview: URL.createObjectURL(file),
-    }));
+    const selectedFiles =
+      files.slice(
+        0,
+        remainingSlots
+      );
 
-    setImages((current) => [...current, ...imageObjects]);
+    const imageObjects =
+      selectedFiles.map(
+        (file) => ({
+          id: `${file.name}-${file.lastModified}-${Math.random()}`,
+          file,
+          preview:
+            URL.createObjectURL(
+              file
+            ),
+          isExisting: false,
+        })
+      );
+
+    setImages(
+      (current) => [
+        ...current,
+        ...imageObjects,
+      ]
+    );
 
     if (errors.images) {
       setErrors((current) => ({
@@ -209,125 +685,285 @@ export default function ListPropertyPage() {
     event.target.value = "";
   };
 
-  const removeImage = (imageId) => {
-    setImages((current) => {
-      const imageToRemove = current.find(
-        (image) => image.id === imageId
-      );
+  /*
+  |--------------------------------------------------------------------------
+  | REMOVE IMAGE
+  |--------------------------------------------------------------------------
+  */
 
-      if (imageToRemove) {
-        URL.revokeObjectURL(imageToRemove.preview);
+  const removeImage = (
+    imageId
+  ) => {
+    setImages((current) => {
+      const imageToRemove =
+        current.find(
+          (image) =>
+            image.id === imageId
+        );
+
+      /*
+       * Only revoke object URLs for newly
+       * uploaded local files.
+       */
+
+      if (
+        imageToRemove &&
+        !imageToRemove.isExisting &&
+        imageToRemove.preview
+      ) {
+        URL.revokeObjectURL(
+          imageToRemove.preview
+        );
       }
 
-      return current.filter((image) => image.id !== imageId);
+      return current.filter(
+        (image) =>
+          image.id !== imageId
+      );
     });
   };
 
+  /*
+  |--------------------------------------------------------------------------
+  | ADD HOUSE RULE
+  |--------------------------------------------------------------------------
+  */
+
   const addRule = () => {
-    const trimmedRule = newRule.trim();
+    const trimmedRule =
+      newRule.trim();
 
-    if (!trimmedRule) return;
+    if (!trimmedRule) {
+      return;
+    }
 
-    setRules((current) => [...current, trimmedRule]);
+    setRules(
+      (current) => [
+        ...current,
+        trimmedRule,
+      ]
+    );
+
     setNewRule("");
   };
 
-  const removeRule = (ruleToRemove) => {
-    setRules((current) =>
-      current.filter((rule) => rule !== ruleToRemove)
+  /*
+  |--------------------------------------------------------------------------
+  | REMOVE HOUSE RULE
+  |--------------------------------------------------------------------------
+  */
+
+  const removeRule = (
+    ruleToRemove
+  ) => {
+    setRules(
+      (current) =>
+        current.filter(
+          (rule) =>
+            rule !== ruleToRemove
+        )
     );
   };
+
+  /*
+  |--------------------------------------------------------------------------
+  | VALIDATION
+  |--------------------------------------------------------------------------
+  */
 
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.propertyName.trim()) {
-      newErrors.propertyName = "Property name is required.";
+    if (
+      !formData.propertyName.trim()
+    ) {
+      newErrors.propertyName =
+        "Property name is required.";
     }
 
     if (!formData.propertyType) {
-      newErrors.propertyType = "Please select a property type.";
+      newErrors.propertyType =
+        "Please select a property type.";
     }
 
-    if (!formData.state.trim()) {
-      newErrors.state = "State is required.";
+    if (!formData.state) {
+      newErrors.state =
+        "State is required.";
     }
 
-    if (!formData.city.trim()) {
-      newErrors.city = "City is required.";
+    if (!formData.city) {
+      newErrors.city =
+        "City is required.";
     }
 
-    if (!formData.lga.trim()) {
-      newErrors.lga = "LGA is required.";
+    if (!formData.lga) {
+      newErrors.lga =
+        "LGA is required.";
     }
 
-    if (!formData.address.trim()) {
-      newErrors.address = "Property address is required.";
+    if (
+      !formData.address.trim()
+    ) {
+      newErrors.address =
+        "Property address is required.";
     }
 
-    if (!formData.description.trim()) {
-      newErrors.description = "Please describe your property.";
+    if (
+      !formData.description.trim()
+    ) {
+      newErrors.description =
+        "Please describe your property.";
     }
 
-    if (!formData.price || Number(formData.price) <= 0) {
-      newErrors.price = "Enter a valid price per night.";
+    if (
+      !formData.price ||
+      Number(formData.price) <= 0
+    ) {
+      newErrors.price =
+        "Enter a valid price per night.";
     }
 
     if (!images.length) {
-      newErrors.images = "Please upload at least one property photo.";
+      newErrors.images =
+        "Please have at least one property photo.";
     }
 
-    if (!selectedAmenities.length) {
-      newErrors.amenities = "Select at least one amenity.";
+    if (
+      !selectedAmenities.length
+    ) {
+      newErrors.amenities =
+        "Select at least one amenity.";
     }
 
     setErrors(newErrors);
 
-    return Object.keys(newErrors).length === 0;
+    return (
+      Object.keys(newErrors)
+        .length === 0
+    );
   };
 
-  const uploadImagesToCloudinary = async () => {
-    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {
-      throw new Error(
-        "Cloudinary configuration is missing. Please check your frontend environment variables."
-      );
-    }
+  /*
+  |--------------------------------------------------------------------------
+  | UPLOAD NEW IMAGES
+  |--------------------------------------------------------------------------
+  */
 
-    const uploadedImages = [];
-
-    for (const image of images) {
-      const uploadData = new FormData();
-
-      uploadData.append("file", image.file);
-      uploadData.append(
-        "upload_preset",
-        CLOUDINARY_UPLOAD_PRESET
-      );
-
-      const response = await fetch(
-        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
-        {
-          method: "POST",
-          body: uploadData,
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok || !data.secure_url) {
+  const uploadNewImagesToCloudinary =
+    async () => {
+      if (
+        !CLOUDINARY_CLOUD_NAME ||
+        !CLOUDINARY_UPLOAD_PRESET
+      ) {
         throw new Error(
-          data.error?.message ||
-            "Unable to upload property image."
+          "Cloudinary configuration is missing. Please check your frontend environment variables."
         );
       }
 
-      uploadedImages.push(data.secure_url);
-    }
+      /*
+       * Only new images have a file.
+       */
 
-    return uploadedImages;
-  };
+      const newImages =
+        images.filter(
+          (image) =>
+            !image.isExisting &&
+            image.file
+        );
 
-  const handleSubmit = async (event) => {
+      const uploadedImages = [];
+
+      for (
+        const image of newImages
+      ) {
+        const uploadData =
+          new FormData();
+
+        uploadData.append(
+          "file",
+          image.file
+        );
+
+        uploadData.append(
+          "upload_preset",
+          CLOUDINARY_UPLOAD_PRESET
+        );
+
+        const response =
+          await fetch(
+            `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+            {
+              method: "POST",
+              body: uploadData,
+            }
+          );
+
+        const data =
+          await response.json();
+
+        if (
+          !response.ok ||
+          !data.secure_url
+        ) {
+          throw new Error(
+            data.error?.message ||
+              "Unable to upload property image."
+          );
+        }
+
+        uploadedImages.push(
+          data.secure_url
+        );
+      }
+
+      return uploadedImages;
+    };
+
+  /*
+  |--------------------------------------------------------------------------
+  | BUILD IMAGE ARRAY
+  |--------------------------------------------------------------------------
+  */
+
+  const buildFinalImageArray =
+    async () => {
+      /*
+       * Existing images are already URLs.
+       */
+
+      const existingImages =
+        images
+          .filter(
+            (image) =>
+              image.isExisting
+          )
+          .map(
+            (image) =>
+              image.url
+          );
+
+      /*
+       * Upload only newly selected images.
+       */
+
+      const newImages =
+        await uploadNewImagesToCloudinary();
+
+      return [
+        ...existingImages,
+        ...newImages,
+      ];
+    };
+
+  /*
+  |--------------------------------------------------------------------------
+  | SUBMIT
+  |--------------------------------------------------------------------------
+  */
+
+  const handleSubmit = async (
+    event
+  ) => {
     event.preventDefault();
 
     if (!validateForm()) {
@@ -341,125 +977,217 @@ export default function ListPropertyPage() {
 
     setIsSubmitting(true);
 
+    setErrors((current) => ({
+      ...current,
+      submit: "",
+    }));
+
     try {
       /*
        * STEP 1
-       * Upload all selected images to Cloudinary.
+       *
+       * Prepare images.
        */
-      const imageUrls = await uploadImagesToCloudinary();
+
+      const finalImageUrls =
+        await buildFinalImageArray();
 
       /*
-       * STEP 2
-       * Build the accommodation payload.
-       *
-       * Notice that there is NO owner field here.
-       *
-       * The backend gets the owner from:
-       * req.user.id
-       *
-       * This means one property owner account can own
-       * multiple accommodations.
+       * Make absolutely sure there is
+       * still at least one image.
        */
-      const accommodationData = {
-        name: formData.propertyName.trim(),
 
-        description: formData.description.trim(),
-
-        type: formData.propertyType,
-
-        images: imageUrls,
-
-        pricePerNight: Number(formData.price),
-
-        location: {
-          state: formData.state.trim(),
-          city: formData.city.trim(),
-          lga: formData.lga.trim(),
-          address: formData.address.trim(),
-        },
-
-        amenities: selectedAmenities,
-
-        bedrooms: Number(formData.bedrooms),
-
-        bathrooms: Number(formData.bathrooms),
-
-        maxGuests: Number(formData.guests),
-
-        checkInTime: formData.checkInTime.trim(),
-
-        checkOutTime: formData.checkOutTime.trim(),
-
-        propertyWebsite: formData.website.trim(),
-
-        /*
-         * These are retained from the form for future
-         * accommodation model support.
-         */
-        beds: Number(formData.beds),
-
-        rules,
-      };
-
-      /*
-       * STEP 3
-       * Send the property to the authenticated backend.
-       */
-      const response = await fetch(
-        `${API_URL}/accommodations`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-          body: JSON.stringify(accommodationData),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
+      if (!finalImageUrls.length) {
         throw new Error(
-          data.message ||
-            "Unable to submit your property."
+          "Please have at least one property photo."
         );
       }
 
       /*
-       * STEP 4
-       * Clean up local image preview URLs.
+       * STEP 2
+       *
+       * Build backend payload.
+       *
+       * Notice:
+       *
+       * owner is NOT included.
+       *
+       * slug is NOT included.
+       *
+       * status is NOT included.
+       *
+       * averageRating is NOT included.
+       *
+       * totalReviews is NOT included.
+       *
+       * isAvailable is NOT included.
+       *
+       * These belong to the backend.
        */
-      images.forEach((image) => {
-        URL.revokeObjectURL(image.preview);
-      });
+
+      const accommodationData = {
+        name:
+          formData.propertyName.trim(),
+
+        description:
+          formData.description.trim(),
+
+        type:
+          formData.propertyType,
+
+        images:
+          finalImageUrls,
+
+        pricePerNight:
+          Number(formData.price),
+
+        location: {
+          state:
+            formData.state,
+
+          city:
+            formData.city,
+
+          lga:
+            formData.lga,
+
+          address:
+            formData.address.trim(),
+        },
+
+        amenities:
+          selectedAmenities,
+
+        bedrooms:
+          Number(formData.bedrooms),
+
+        bathrooms:
+          Number(formData.bathrooms),
+
+        maxGuests:
+          Number(formData.guests),
+
+        checkInTime:
+          formData.checkInTime.trim(),
+
+        checkOutTime:
+          formData.checkOutTime.trim(),
+
+        propertyWebsite:
+          formData.website.trim(),
+      };
+
+      console.log(
+        isEditMode
+          ? "Updating accommodation:"
+          : "Creating accommodation:",
+        accommodationData
+      );
 
       /*
-       * STEP 5
-       * Reset the form after successful submission.
+       * STEP 3
+       *
+       * CREATE
        */
+
+      let response;
+
+      if (!isEditMode) {
+        response = await API.post(
+          "/accommodations",
+          accommodationData
+        );
+      } else {
+        /*
+         * EDIT
+         *
+         * PUT /accommodations/:id
+         */
+
+        response = await API.put(
+          `/accommodations/${editId}`,
+          accommodationData
+        );
+      }
+
+      const data =
+        response.data;
+
+      console.log(
+        isEditMode
+          ? "Accommodation updated:"
+          : "Accommodation created:",
+        data
+      );
+
+      /*
+       * STEP 4
+       *
+       * Clean object URLs.
+       */
+
+      images.forEach(
+        (image) => {
+          if (
+            !image.isExisting &&
+            image.preview
+          ) {
+            URL.revokeObjectURL(
+              image.preview
+            );
+          }
+        }
+      );
+
+      /*
+       * EDIT MODE
+       *
+       * Keep the user on the page and
+       * update the current UI with the
+       * final images.
+       */
+
+      if (isEditMode) {
+        setImages(
+          finalImageUrls.map(
+            (url, index) => ({
+              id: `updated-${index}-${url}`,
+              url,
+              isExisting: true,
+            })
+          )
+        );
+
+        alert(
+          data.message ||
+            "Your property has been updated successfully."
+        );
+
+        return;
+      }
+
+      /*
+       * CREATE MODE
+       *
+       * Reset everything.
+       */
+
       setFormData({
-        propertyName: "",
-        propertyType: "",
-        state: "",
-        city: "",
-        lga: "",
-        address: "",
-        website: "",
-        description: "",
-        price: "",
-        guests: "2",
-        bedrooms: "1",
-        beds: "1",
-        bathrooms: "1",
-        checkInTime: "2:00 PM",
-        checkOutTime: "12:00 PM",
+        ...initialFormData,
       });
 
-      setSelectedAmenities([]);
-      setRules(defaultRules);
+      setSelectedAmenities(
+        []
+      );
+
+      setRules([
+        ...defaultRules,
+      ]);
+
       setNewRule("");
+
       setImages([]);
+
       setErrors({});
 
       alert(
@@ -467,12 +1195,23 @@ export default function ListPropertyPage() {
           "Your property has been submitted successfully for review."
       );
     } catch (error) {
-      console.error("Submit property error:", error);
+      console.error(
+        isEditMode
+          ? "Update property error:"
+          : "Submit property error:",
+        error
+      );
+
+      const message =
+        error.response?.data
+          ?.message ||
+        error.message ||
+        (isEditMode
+          ? "Unable to update your property. Please try again."
+          : "Unable to submit your property. Please try again.");
 
       setErrors({
-        submit:
-          error.message ||
-          "Unable to submit your property. Please try again.",
+        submit: message,
       });
 
       window.scrollTo({
@@ -484,14 +1223,58 @@ export default function ListPropertyPage() {
     }
   };
 
-  const TRIPGUARD_FEE_PERCENTAGE = 10;
+  /*
+  |--------------------------------------------------------------------------
+  | PRICE CALCULATION
+  |--------------------------------------------------------------------------
+  */
 
-  const basePrice = Number(formData.price) || 0;
+  const TRIPGUARD_FEE_PERCENTAGE =
+    10;
 
-const tripGuardFee =
-  basePrice * (TRIPGUARD_FEE_PERCENTAGE / 100);
+  const basePrice =
+    Number(formData.price) || 0;
 
-const customerPrice = basePrice + tripGuardFee;
+  const tripGuardFee =
+    basePrice *
+    (TRIPGUARD_FEE_PERCENTAGE /
+      100);
+
+  const customerPrice =
+    basePrice +
+    tripGuardFee;
+
+  /*
+  |--------------------------------------------------------------------------
+  | LOADING SCREEN
+  |--------------------------------------------------------------------------
+  */
+
+  if (isLoadingProperty) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#F7F7F2]">
+        <div className="flex flex-col items-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#E1F5ED]">
+            <Loader2 className="h-7 w-7 animate-spin text-[#397A69]" />
+          </div>
+
+          <p className="mt-5 text-sm font-semibold text-[#173C37]">
+            Loading property...
+          </p>
+
+          <p className="mt-2 text-xs text-[#7A8581]">
+            Preparing your property information.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | PAGE
+  |--------------------------------------------------------------------------
+  */
 
   return (
     <main className="min-h-screen bg-[#F7F7F2] text-[#172322]">
@@ -515,6 +1298,7 @@ const customerPrice = basePrice + tripGuardFee;
               TripGuard
             </span>
           </div>
+
         </div>
       </div>
 
@@ -523,18 +1307,25 @@ const customerPrice = basePrice + tripGuardFee;
         <div className="mx-auto max-w-5xl px-5 py-12 lg:px-8 lg:py-16">
 
           <div className="max-w-2xl">
+
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#397A69]">
-              List your property
+              {isEditMode
+                ? "Edit your property"
+                : "List your property"}
             </p>
 
             <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl lg:text-5xl">
-              Give travellers a place worth staying.
+              {isEditMode
+                ? "Keep your property information up to date."
+                : "Give travellers a place worth staying."}
             </h1>
 
             <p className="mt-5 text-[15px] leading-8 text-[#697570]">
-              Tell travellers about your property, the experience you
-              offer and everything they need to know before booking.
+              {isEditMode
+                ? "Update your property details, photos, amenities and pricing. Your changes will be saved to your TripGuard property."
+                : "Tell travellers about your property, the experience you offer and everything they need to know before booking."}
             </p>
+
           </div>
 
           {/* PROGRESS */}
@@ -545,15 +1336,28 @@ const customerPrice = basePrice + tripGuardFee;
           </div>
 
           <p className="mt-3 text-xs text-[#7A8581]">
-            Complete all required information before submitting your
-            property.
+            Complete all required information before{" "}
+            {isEditMode
+              ? "saving your changes."
+              : "submitting your property."}
           </p>
+
+          {isEditMode &&
+            propertyStatus && (
+              <div className="mt-5 inline-flex rounded-full bg-[#F1F5F3] px-4 py-2 text-xs font-semibold capitalize text-[#397A69]">
+                Property status:{" "}
+                <span className="ml-1">
+                  {propertyStatus}
+                </span>
+              </div>
+            )}
 
           {errors.submit && (
             <div className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
               {errors.submit}
             </div>
           )}
+
         </div>
       </section>
 
@@ -566,30 +1370,29 @@ const customerPrice = basePrice + tripGuardFee;
         {/* BASIC INFORMATION */}
         <section className="rounded-[28px] border border-[#E2E3DC] bg-white p-6 shadow-sm sm:p-8">
 
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#397A69]">
-              01
-            </p>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#397A69]">
+            01
+          </p>
 
-            <h2 className="mt-2 text-2xl font-semibold">
-              Tell us about your property
-            </h2>
+          <h2 className="mt-2 text-2xl font-semibold">
+            Tell us about your property
+          </h2>
 
-            <p className="mt-2 text-sm text-[#7A8581]">
-              Start with the basic information travellers will see
-              first.
-            </p>
-          </div>
+          <p className="mt-2 text-sm text-[#7A8581]">
+            Start with the basic information travellers will see first.
+          </p>
 
           <div className="mt-8 grid gap-6 sm:grid-cols-2">
 
             {/* PROPERTY NAME */}
             <div className="sm:col-span-2">
+
               <label
                 htmlFor="propertyName"
                 className="mb-2 block text-sm font-semibold"
               >
-                Property name <span className="text-red-500">*</span>
+                Property name{" "}
+                <span className="text-red-500">*</span>
               </label>
 
               <input
@@ -610,18 +1413,22 @@ const customerPrice = basePrice + tripGuardFee;
                   {errors.propertyName}
                 </p>
               )}
+
             </div>
 
             {/* PROPERTY TYPE */}
             <div>
+
               <label
                 htmlFor="propertyType"
                 className="mb-2 block text-sm font-semibold"
               >
-                Property type <span className="text-red-500">*</span>
+                Property type{" "}
+                <span className="text-red-500">*</span>
               </label>
 
               <div className="relative">
+
                 <select
                   id="propertyType"
                   name="propertyType"
@@ -633,16 +1440,24 @@ const customerPrice = basePrice + tripGuardFee;
                       : "border-[#DCE2DF]"
                   }`}
                 >
-                  <option value="">Select property type</option>
+                  <option value="">
+                    Select property type
+                  </option>
 
-                  {propertyTypes.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
+                  {propertyTypes.map(
+                    (type, index) => (
+                      <option
+                        key={`${type.label}-${index}`}
+                        value={type.value}
+                      >
+                        {type.label}
+                      </option>
+                    )
+                  )}
                 </select>
 
                 <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7A8581]" />
+
               </div>
 
               {errors.propertyType && (
@@ -650,18 +1465,22 @@ const customerPrice = basePrice + tripGuardFee;
                   {errors.propertyType}
                 </p>
               )}
+
             </div>
 
             {/* PRICE */}
             <div>
+
               <label
                 htmlFor="price"
                 className="mb-2 block text-sm font-semibold"
               >
-                Price per night <span className="text-red-500">*</span>
+                Price per night{" "}
+                <span className="text-red-500">*</span>
               </label>
 
               <div className="relative">
+
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-[#397A69]">
                   ₦
                 </span>
@@ -680,6 +1499,7 @@ const customerPrice = basePrice + tripGuardFee;
                       : "border-[#DCE2DF]"
                   }`}
                 />
+
               </div>
 
               {errors.price && (
@@ -687,7 +1507,50 @@ const customerPrice = basePrice + tripGuardFee;
                   {errors.price}
                 </p>
               )}
+
+              {basePrice > 0 && (
+                <div className="mt-3 rounded-xl bg-[#F4F8F6] p-3 text-xs text-[#697570]">
+
+                  <div className="flex justify-between">
+                    <span>
+                      Your listed price
+                    </span>
+
+                    <span className="font-semibold text-[#173C37]">
+                      ₦
+                      {basePrice.toLocaleString()}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 flex justify-between">
+                    <span>
+                      TripGuard fee (10%)
+                    </span>
+
+                    <span>
+                      ₦
+                      {tripGuardFee.toLocaleString()}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 flex justify-between border-t border-[#DDE5E1] pt-2">
+
+                    <span className="font-semibold text-[#173C37]">
+                      Guest pays
+                    </span>
+
+                    <span className="font-bold text-[#397A69]">
+                      ₦
+                      {customerPrice.toLocaleString()}
+                    </span>
+
+                  </div>
+
+                </div>
+              )}
+
             </div>
+
           </div>
         </section>
 
@@ -695,11 +1558,13 @@ const customerPrice = basePrice + tripGuardFee;
         <section className="mt-8 rounded-[28px] border border-[#E2E3DC] bg-white p-6 shadow-sm sm:p-8">
 
           <div className="flex gap-4">
+
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#E1F5ED]">
               <MapPin className="h-5 w-5 text-[#277765]" />
             </div>
 
             <div>
+
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#397A69]">
                 02
               </p>
@@ -709,99 +1574,180 @@ const customerPrice = basePrice + tripGuardFee;
               </h2>
 
               <p className="mt-2 text-sm text-[#7A8581]">
-                This helps travellers find your property using
-                TripGuard&apos;s location search.
+                This helps travellers find your property using TripGuard&apos;s location search.
               </p>
+
             </div>
+
           </div>
 
           <div className="mt-8 grid gap-6 sm:grid-cols-3">
 
+            {/* STATE */}
             <div>
+
               <label
                 htmlFor="state"
                 className="mb-2 block text-sm font-semibold"
               >
-                State <span className="text-red-500">*</span>
+                State{" "}
+                <span className="text-red-500">*</span>
               </label>
 
-              <input
-                id="state"
-                name="state"
-                value={formData.state}
-                onChange={handleChange}
-                placeholder="e.g. Lagos"
-                className={`h-12 w-full rounded-xl border px-4 text-sm outline-none transition focus:border-[#397A69] focus:ring-2 focus:ring-[#397A69]/10 ${
-                  errors.state
-                    ? "border-red-400"
-                    : "border-[#DCE2DF]"
-                }`}
-              />
+              <div className="relative">
+
+                <select
+                  id="state"
+                  name="state"
+                  value={formData.state}
+                  onChange={handleStateChange}
+                  className={`h-12 w-full appearance-none rounded-xl border bg-white px-4 pr-10 text-sm outline-none transition focus:border-[#397A69] focus:ring-2 focus:ring-[#397A69]/10 ${
+                    errors.state
+                      ? "border-red-400"
+                      : "border-[#DCE2DF]"
+                  }`}
+                >
+                  <option value="">
+                    Select state
+                  </option>
+
+                  {statesData.map(
+                    (state) => (
+                      <option
+                        key={state.name}
+                        value={state.name}
+                      >
+                        {state.name}
+                      </option>
+                    )
+                  )}
+                </select>
+
+                <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7A8581]" />
+
+              </div>
 
               {errors.state && (
                 <p className="mt-2 text-xs text-red-500">
                   {errors.state}
                 </p>
               )}
+
             </div>
 
+            {/* CITY */}
             <div>
+
               <label
                 htmlFor="city"
                 className="mb-2 block text-sm font-semibold"
               >
-                City <span className="text-red-500">*</span>
+                City{" "}
+                <span className="text-red-500">*</span>
               </label>
 
-              <input
-                id="city"
-                name="city"
-                value={formData.city}
-                onChange={handleChange}
-                placeholder="e.g. Lagos"
-                className={`h-12 w-full rounded-xl border px-4 text-sm outline-none transition focus:border-[#397A69] focus:ring-2 focus:ring-[#397A69]/10 ${
-                  errors.city
-                    ? "border-red-400"
-                    : "border-[#DCE2DF]"
-                }`}
-              />
+              <div className="relative">
+
+                <select
+                  id="city"
+                  name="city"
+                  value={formData.city}
+                  onChange={handleCityChange}
+                  disabled={!formData.state}
+                  className={`h-12 w-full appearance-none rounded-xl border bg-white px-4 pr-10 text-sm outline-none transition focus:border-[#397A69] focus:ring-2 focus:ring-[#397A69]/10 disabled:cursor-not-allowed disabled:bg-[#F3F5F4] disabled:text-[#9AA29F] ${
+                    errors.city
+                      ? "border-red-400"
+                      : "border-[#DCE2DF]"
+                  }`}
+                >
+                  <option value="">
+                    {formData.state
+                      ? "Select city"
+                      : "Select state first"}
+                  </option>
+
+                  {availableCities.map(
+                    (city) => (
+                      <option
+                        key={city}
+                        value={city}
+                      >
+                        {city}
+                      </option>
+                    )
+                  )}
+                </select>
+
+                <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7A8581]" />
+
+              </div>
 
               {errors.city && (
                 <p className="mt-2 text-xs text-red-500">
                   {errors.city}
                 </p>
               )}
+
             </div>
 
+            {/* LGA */}
             <div>
+
               <label
                 htmlFor="lga"
                 className="mb-2 block text-sm font-semibold"
               >
-                LGA <span className="text-red-500">*</span>
+                LGA{" "}
+                <span className="text-red-500">*</span>
               </label>
 
-              <input
-                id="lga"
-                name="lga"
-                value={formData.lga}
-                onChange={handleChange}
-                placeholder="e.g. Eti-Osa"
-                className={`h-12 w-full rounded-xl border px-4 text-sm outline-none transition focus:border-[#397A69] focus:ring-2 focus:ring-[#397A69]/10 ${
-                  errors.lga
-                    ? "border-red-400"
-                    : "border-[#DCE2DF]"
-                }`}
-              />
+              <div className="relative">
+
+                <select
+                  id="lga"
+                  name="lga"
+                  value={formData.lga}
+                  onChange={handleLgaChange}
+                  disabled={!formData.state}
+                  className={`h-12 w-full appearance-none rounded-xl border bg-white px-4 pr-10 text-sm outline-none transition focus:border-[#397A69] focus:ring-2 focus:ring-[#397A69]/10 disabled:cursor-not-allowed disabled:bg-[#F3F5F4] disabled:text-[#9AA29F] ${
+                    errors.lga
+                      ? "border-red-400"
+                      : "border-[#DCE2DF]"
+                  }`}
+                >
+                  <option value="">
+                    {formData.state
+                      ? "Select LGA"
+                      : "Select state first"}
+                  </option>
+
+                  {availableLgas.map(
+                    (lga) => (
+                      <option
+                        key={lga}
+                        value={lga}
+                      >
+                        {lga}
+                      </option>
+                    )
+                  )}
+                </select>
+
+                <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7A8581]" />
+
+              </div>
 
               {errors.lga && (
                 <p className="mt-2 text-xs text-red-500">
                   {errors.lga}
                 </p>
               )}
+
             </div>
 
+            {/* ADDRESS */}
             <div className="sm:col-span-3">
+
               <label
                 htmlFor="address"
                 className="mb-2 block text-sm font-semibold"
@@ -828,14 +1774,18 @@ const customerPrice = basePrice + tripGuardFee;
                   {errors.address}
                 </p>
               )}
+
             </div>
 
+            {/* WEBSITE */}
             <div className="sm:col-span-3">
+
               <label
                 htmlFor="website"
                 className="mb-2 flex items-center gap-2 text-sm font-semibold"
               >
                 Property website
+
                 <span className="text-xs font-normal text-[#9AA29F]">
                   Optional
                 </span>
@@ -850,31 +1800,32 @@ const customerPrice = basePrice + tripGuardFee;
                 placeholder="https://yourproperty.com"
                 className="h-12 w-full rounded-xl border border-[#DCE2DF] px-4 text-sm outline-none transition focus:border-[#397A69] focus:ring-2 focus:ring-[#397A69]/10"
               />
+
             </div>
+
           </div>
         </section>
 
         {/* PROPERTY DETAILS */}
         <section className="mt-8 rounded-[28px] border border-[#E2E3DC] bg-white p-6 shadow-sm sm:p-8">
 
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#397A69]">
-              03
-            </p>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#397A69]">
+            03
+          </p>
 
-            <h2 className="mt-2 text-2xl font-semibold">
-              Property details
-            </h2>
+          <h2 className="mt-2 text-2xl font-semibold">
+            Property details
+          </h2>
 
-            <p className="mt-2 text-sm text-[#7A8581]">
-              Tell guests how many people your property can
-              comfortably accommodate.
-            </p>
-          </div>
+          <p className="mt-2 text-sm text-[#7A8581]">
+            Tell guests how many people your property can comfortably accommodate.
+          </p>
 
-          <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-8 grid gap-6 sm:grid-cols-3">
 
+            {/* GUESTS */}
             <div>
+
               <label
                 htmlFor="guests"
                 className="mb-2 block text-sm font-semibold"
@@ -891,9 +1842,12 @@ const customerPrice = basePrice + tripGuardFee;
                 onChange={handleChange}
                 className="h-12 w-full rounded-xl border border-[#DCE2DF] px-4 text-sm outline-none transition focus:border-[#397A69] focus:ring-2 focus:ring-[#397A69]/10"
               />
+
             </div>
 
+            {/* BEDROOMS */}
             <div>
+
               <label
                 htmlFor="bedrooms"
                 className="mb-2 block text-sm font-semibold"
@@ -910,28 +1864,12 @@ const customerPrice = basePrice + tripGuardFee;
                 onChange={handleChange}
                 className="h-12 w-full rounded-xl border border-[#DCE2DF] px-4 text-sm outline-none transition focus:border-[#397A69] focus:ring-2 focus:ring-[#397A69]/10"
               />
+
             </div>
 
+            {/* BATHROOMS */}
             <div>
-              <label
-                htmlFor="beds"
-                className="mb-2 block text-sm font-semibold"
-              >
-                Beds
-              </label>
 
-              <input
-                id="beds"
-                name="beds"
-                type="number"
-                min="0"
-                value={formData.beds}
-                onChange={handleChange}
-                className="h-12 w-full rounded-xl border border-[#DCE2DF] px-4 text-sm outline-none transition focus:border-[#397A69] focus:ring-2 focus:ring-[#397A69]/10"
-              />
-            </div>
-
-            <div>
               <label
                 htmlFor="bathrooms"
                 className="mb-2 block text-sm font-semibold"
@@ -949,29 +1887,29 @@ const customerPrice = basePrice + tripGuardFee;
                 onChange={handleChange}
                 className="h-12 w-full rounded-xl border border-[#DCE2DF] px-4 text-sm outline-none transition focus:border-[#397A69] focus:ring-2 focus:ring-[#397A69]/10"
               />
+
             </div>
+
           </div>
         </section>
 
         {/* DESCRIPTION */}
         <section className="mt-8 rounded-[28px] border border-[#E2E3DC] bg-white p-6 shadow-sm sm:p-8">
 
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#397A69]">
-              04
-            </p>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#397A69]">
+            04
+          </p>
 
-            <h2 className="mt-2 text-2xl font-semibold">
-              Describe your property
-            </h2>
+          <h2 className="mt-2 text-2xl font-semibold">
+            Describe your property
+          </h2>
 
-            <p className="mt-2 text-sm text-[#7A8581]">
-              Give travellers a clear idea of what makes your
-              property special.
-            </p>
-          </div>
+          <p className="mt-2 text-sm text-[#7A8581]">
+            Give travellers a clear idea of what makes your property special.
+          </p>
 
           <div className="mt-8">
+
             <label
               htmlFor="description"
               className="mb-2 block text-sm font-semibold"
@@ -996,6 +1934,7 @@ const customerPrice = basePrice + tripGuardFee;
             />
 
             <div className="mt-2 flex justify-between">
+
               {errors.description ? (
                 <p className="text-xs text-red-500">
                   {errors.description}
@@ -1007,27 +1946,26 @@ const customerPrice = basePrice + tripGuardFee;
               <span className="text-xs text-[#9AA29F]">
                 {formData.description.length}/1500
               </span>
+
             </div>
+
           </div>
         </section>
 
         {/* PHOTOS */}
         <section className="mt-8 rounded-[28px] border border-[#E2E3DC] bg-white p-6 shadow-sm sm:p-8">
 
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#397A69]">
-              05
-            </p>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#397A69]">
+            05
+          </p>
 
-            <h2 className="mt-2 text-2xl font-semibold">
-              Add property photos
-            </h2>
+          <h2 className="mt-2 text-2xl font-semibold">
+            Add property photos
+          </h2>
 
-            <p className="mt-2 text-sm leading-6 text-[#7A8581]">
-              Upload clear photos of your property. Your first photo
-              will be used as the main image.
-            </p>
-          </div>
+          <p className="mt-2 text-sm leading-6 text-[#7A8581]">
+            Upload clear photos of your property. Your first photo will be used as the main image.
+          </p>
 
           <div className="mt-8">
 
@@ -1039,7 +1977,9 @@ const customerPrice = basePrice + tripGuardFee;
                 </div>
 
                 <p className="mt-4 text-sm font-semibold text-[#173C37]">
-                  Upload property photos
+                  {isEditMode
+                    ? "Add more property photos"
+                    : "Upload property photos"}
                 </p>
 
                 <p className="mt-2 text-xs text-[#7A8581]">
@@ -1053,6 +1993,7 @@ const customerPrice = basePrice + tripGuardFee;
                   onChange={handleImageUpload}
                   className="hidden"
                 />
+
               </label>
             )}
 
@@ -1064,107 +2005,154 @@ const customerPrice = basePrice + tripGuardFee;
 
             {images.length > 0 && (
               <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                {images.map((image, index) => (
-                  <div
-                    key={image.id}
-                    className="group relative aspect-square overflow-hidden rounded-2xl border border-[#DDE4E1]"
-                  >
-                    <img
-                      src={image.preview}
-                      alt={`Property ${index + 1}`}
-                      className="h-full w-full object-cover"
-                    />
 
-                    {index === 0 && (
-                      <span className="absolute left-2 top-2 rounded-full bg-[#173C37] px-2.5 py-1 text-[10px] font-bold text-white">
-                        Main photo
-                      </span>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => removeImage(image.id)}
-                      className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-red-500 opacity-0 shadow transition group-hover:opacity-100"
-                      aria-label="Remove image"
+                {images.map(
+                  (
+                    image,
+                    index
+                  ) => (
+                    <div
+                      key={
+                        image.id
+                      }
+                      className="group relative aspect-square overflow-hidden rounded-2xl border border-[#DDE4E1]"
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
+
+                      <img
+                        src={
+                          image.isExisting
+                            ? image.url
+                            : image.preview
+                        }
+                        alt={`Property ${
+                          index + 1
+                        }`}
+                        className="h-full w-full object-cover"
+                      />
+
+                      {index === 0 && (
+                        <span className="absolute left-2 top-2 rounded-full bg-[#173C37] px-2.5 py-1 text-[10px] font-bold text-white">
+                          Main photo
+                        </span>
+                      )}
+
+                      {!image.isExisting && (
+                        <span className="absolute bottom-2 left-2 rounded-full bg-[#397A69] px-2.5 py-1 text-[10px] font-bold text-white">
+                          New
+                        </span>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          removeImage(
+                            image.id
+                          )
+                        }
+                        className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-red-500 opacity-0 shadow transition group-hover:opacity-100"
+                        aria-label="Remove image"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+
+                    </div>
+                  )
+                )}
+
               </div>
             )}
 
             <p className="mt-4 text-xs text-[#8A9390]">
               {images.length}/10 photos selected
             </p>
+
+            {isEditMode && (
+              <p className="mt-2 text-xs text-[#8A9390]">
+                Removing an existing photo will remove it from this property when you save your changes.
+              </p>
+            )}
+
           </div>
         </section>
 
         {/* AMENITIES */}
         <section className="mt-8 rounded-[28px] border border-[#E2E3DC] bg-white p-6 shadow-sm sm:p-8">
 
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#397A69]">
-              06
-            </p>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#397A69]">
+            06
+          </p>
 
-            <h2 className="mt-2 text-2xl font-semibold">
-              What does your property offer?
-            </h2>
+          <h2 className="mt-2 text-2xl font-semibold">
+            What does your property offer?
+          </h2>
 
-            <p className="mt-2 text-sm text-[#7A8581]">
-              Select all amenities available to your guests.
-            </p>
-          </div>
+          <p className="mt-2 text-sm text-[#7A8581]">
+            Select all amenities available to your guests.
+          </p>
 
           <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
 
-            {amenities.map((amenity) => {
-              const Icon = amenity.icon;
+            {amenities.map(
+              (amenity) => {
+                const Icon =
+                  amenity.icon;
 
-              const isSelected = selectedAmenities.includes(
-                amenity.id
-              );
+                const isSelected =
+                  selectedAmenities.includes(
+                    amenity.id
+                  );
 
-              return (
-                <button
-                  key={amenity.id}
-                  type="button"
-                  onClick={() => toggleAmenity(amenity.id)}
-                  className={`flex items-center gap-3 rounded-2xl border p-4 text-left transition ${
-                    isSelected
-                      ? "border-[#397A69] bg-[#EAF6F1]"
-                      : "border-[#E0E4E1] bg-white hover:border-[#AFC8BE]"
-                  }`}
-                >
-                  <div
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                return (
+                  <button
+                    key={
+                      amenity.id
+                    }
+                    type="button"
+                    onClick={() =>
+                      toggleAmenity(
+                        amenity.id
+                      )
+                    }
+                    className={`flex items-center gap-3 rounded-2xl border p-4 text-left transition ${
                       isSelected
-                        ? "bg-[#173C37] text-[#63E6BE]"
-                        : "bg-[#F1F4F2] text-[#397A69]"
+                        ? "border-[#397A69] bg-[#EAF6F1]"
+                        : "border-[#E0E4E1] bg-white hover:border-[#AFC8BE]"
                     }`}
                   >
-                    <Icon className="h-5 w-5" />
-                  </div>
 
-                  <span className="flex-1 text-sm font-semibold">
-                    {amenity.label}
-                  </span>
+                    <div
+                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                        isSelected
+                          ? "bg-[#173C37] text-[#63E6BE]"
+                          : "bg-[#F1F4F2] text-[#397A69]"
+                      }`}
+                    >
+                      <Icon className="h-5 w-5" />
+                    </div>
 
-                  <div
-                    className={`flex h-5 w-5 items-center justify-center rounded-full border ${
-                      isSelected
-                        ? "border-[#397A69] bg-[#397A69] text-white"
-                        : "border-[#CBD5D1]"
-                    }`}
-                  >
-                    {isSelected && (
-                      <Check className="h-3 w-3" />
-                    )}
-                  </div>
-                </button>
-              );
-            })}
+                    <span className="flex-1 text-sm font-semibold">
+                      {
+                        amenity.label
+                      }
+                    </span>
+
+                    <div
+                      className={`flex h-5 w-5 items-center justify-center rounded-full border ${
+                        isSelected
+                          ? "border-[#397A69] bg-[#397A69] text-white"
+                          : "border-[#CBD5D1]"
+                      }`}
+                    >
+                      {isSelected && (
+                        <Check className="h-3 w-3" />
+                      )}
+                    </div>
+
+                  </button>
+                );
+              }
+            )}
+
           </div>
 
           {errors.amenities && (
@@ -1172,59 +2160,78 @@ const customerPrice = basePrice + tripGuardFee;
               {errors.amenities}
             </p>
           )}
+
         </section>
 
         {/* HOUSE RULES */}
         <section className="mt-8 rounded-[28px] border border-[#E2E3DC] bg-white p-6 shadow-sm sm:p-8">
 
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#397A69]">
-              07
-            </p>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#397A69]">
+            07
+          </p>
 
-            <h2 className="mt-2 text-2xl font-semibold">
-              House rules & policies
-            </h2>
+          <h2 className="mt-2 text-2xl font-semibold">
+            House rules & policies
+          </h2>
 
-            <p className="mt-2 text-sm text-[#7A8581]">
-              Let guests know what is expected during their stay.
-            </p>
-          </div>
+          <p className="mt-2 text-sm text-[#7A8581]">
+            Let guests know what is expected during their stay.
+          </p>
 
           <div className="mt-8 space-y-3">
-            {rules.map((rule) => (
-              <div
-                key={rule}
-                className="flex items-center justify-between gap-4 rounded-xl border border-[#E2E6E3] bg-[#FAFBF9] px-4 py-3"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#E1F5ED]">
-                    <Check className="h-3.5 w-3.5 text-[#277765]" />
+
+            {rules.map(
+              (rule, index) => (
+                <div
+                  key={`${rule}-${index}`}
+                  className="flex items-center justify-between gap-4 rounded-xl border border-[#E2E6E3] bg-[#FAFBF9] px-4 py-3"
+                >
+
+                  <div className="flex items-center gap-3">
+
+                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#E1F5ED]">
+                      <Check className="h-3.5 w-3.5 text-[#277765]" />
+                    </div>
+
+                    <span className="text-sm text-[#596661]">
+                      {rule}
+                    </span>
+
                   </div>
 
-                  <span className="text-sm text-[#596661]">
-                    {rule}
-                  </span>
-                </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      removeRule(
+                        rule
+                      )
+                    }
+                    className="text-xs font-semibold text-[#9A6666] transition hover:text-red-600"
+                  >
+                    Remove
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => removeRule(rule)}
-                  className="text-xs font-semibold text-[#9A6666] transition hover:text-red-600"
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
+                </div>
+              )
+            )}
+
           </div>
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+
             <input
               type="text"
               value={newRule}
-              onChange={(event) => setNewRule(event.target.value)}
+              onChange={(event) =>
+                setNewRule(
+                  event.target.value
+                )
+              }
               onKeyDown={(event) => {
-                if (event.key === "Enter") {
+                if (
+                  event.key ===
+                  "Enter"
+                ) {
                   event.preventDefault();
                   addRule();
                 }
@@ -1240,30 +2247,34 @@ const customerPrice = basePrice + tripGuardFee;
             >
               Add rule
             </button>
+
           </div>
+
+          <p className="mt-4 text-xs text-[#9AA29F]">
+            House rules are currently displayed on this form only. Your current Accommodation schema does not yet contain a rules field.
+          </p>
+
         </section>
 
-        {/* CHECK-IN / CHECK-OUT */}
+        {/* CHECK IN / CHECK OUT */}
         <section className="mt-8 rounded-[28px] border border-[#E2E3DC] bg-white p-6 shadow-sm sm:p-8">
 
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#397A69]">
-              08
-            </p>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#397A69]">
+            08
+          </p>
 
-            <h2 className="mt-2 text-2xl font-semibold">
-              Check-in & check-out
-            </h2>
+          <h2 className="mt-2 text-2xl font-semibold">
+            Check-in & check-out
+          </h2>
 
-            <p className="mt-2 text-sm text-[#7A8581]">
-              Tell guests when they can arrive and when they should
-              leave.
-            </p>
-          </div>
+          <p className="mt-2 text-sm text-[#7A8581]">
+            Tell guests when they can arrive and when they should leave.
+          </p>
 
           <div className="mt-8 grid gap-6 sm:grid-cols-2">
 
             <div>
+
               <label
                 htmlFor="checkInTime"
                 className="mb-2 block text-sm font-semibold"
@@ -1276,12 +2287,14 @@ const customerPrice = basePrice + tripGuardFee;
                 name="checkInTime"
                 value={formData.checkInTime}
                 onChange={handleChange}
-                placeholder="2:00 PM"
+                placeholder="14:00"
                 className="h-12 w-full rounded-xl border border-[#DCE2DF] px-4 text-sm outline-none transition focus:border-[#397A69] focus:ring-2 focus:ring-[#397A69]/10"
               />
+
             </div>
 
             <div>
+
               <label
                 htmlFor="checkOutTime"
                 className="mb-2 block text-sm font-semibold"
@@ -1294,10 +2307,12 @@ const customerPrice = basePrice + tripGuardFee;
                 name="checkOutTime"
                 value={formData.checkOutTime}
                 onChange={handleChange}
-                placeholder="12:00 PM"
+                placeholder="12:00"
                 className="h-12 w-full rounded-xl border border-[#DCE2DF] px-4 text-sm outline-none transition focus:border-[#397A69] focus:ring-2 focus:ring-[#397A69]/10"
               />
+
             </div>
+
           </div>
         </section>
 
@@ -1305,11 +2320,13 @@ const customerPrice = basePrice + tripGuardFee;
         <section className="mt-8 rounded-[28px] bg-[#173C37] p-7 text-white sm:p-8">
 
           <div className="flex flex-col gap-5 sm:flex-row">
+
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#63E6BE]/15">
               <ShieldCheck className="h-7 w-7 text-[#63E6BE]" />
             </div>
 
             <div>
+
               <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#63E6BE]">
                 TripGuard protection
               </p>
@@ -1319,12 +2336,11 @@ const customerPrice = basePrice + tripGuardFee;
               </h2>
 
               <p className="mt-3 max-w-2xl text-sm leading-7 text-white/65">
-                When a guest books your property through TripGuard,
-                they can choose someone they trust to receive
-                notifications when they check in and check out.
+                When a guest books your property through TripGuard, they can choose someone they trust to receive notifications when they check in and check out.
               </p>
 
               <div className="mt-5 flex flex-wrap gap-x-6 gap-y-3 text-sm text-white/75">
+
                 <div className="flex items-center gap-2">
                   <Check className="h-4 w-4 text-[#63E6BE]" />
                   Trusted contact notifications
@@ -1339,8 +2355,11 @@ const customerPrice = basePrice + tripGuardFee;
                   <Check className="h-4 w-4 text-[#63E6BE]" />
                   Check-out notification
                 </div>
+
               </div>
+
             </div>
+
           </div>
         </section>
 
@@ -1348,27 +2367,36 @@ const customerPrice = basePrice + tripGuardFee;
         <div className="mt-8 rounded-[28px] border border-[#E2E3DC] bg-white p-6 shadow-sm sm:p-8">
 
           <div className="flex items-start gap-4">
+
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#E1F5ED]">
               <Upload className="h-5 w-5 text-[#277765]" />
             </div>
 
             <div>
+
               <h3 className="font-semibold">
-                Ready to list your property?
+                {isEditMode
+                  ? "Ready to save your changes?"
+                  : "Ready to list your property?"}
               </h3>
 
               <p className="mt-1 text-sm leading-6 text-[#7A8581]">
-                Your property will be reviewed by the TripGuard team
-                before it becomes visible to travellers.
+                {isEditMode
+                  ? "Your updated property information will be saved to your TripGuard property."
+                  : "Your property will be reviewed by the TripGuard team before it becomes visible to travellers."}
               </p>
+
             </div>
+
           </div>
 
           <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
             <p className="text-xs text-[#8A9390]">
               Fields marked with{" "}
-              <span className="text-red-500">*</span>{" "}
+              <span className="text-red-500">
+                *
+              </span>{" "}
               are required.
             </p>
 
@@ -1377,17 +2405,34 @@ const customerPrice = basePrice + tripGuardFee;
               disabled={isSubmitting}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#173C37] px-7 py-4 text-sm font-semibold text-white transition hover:bg-[#23584E] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isSubmitting
-                ? "Submitting..."
-                : "Submit property"}
 
-              {!isSubmitting && (
-                <ArrowRight className="h-4 w-4" />
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+
+                  {isEditMode
+                    ? "Saving changes..."
+                    : "Submitting..."}
+                </>
+              ) : (
+                <>
+                  {isEditMode
+                    ? "Save changes"
+                    : "Submit property"}
+
+                  <ArrowRight className="h-4 w-4" />
+                </>
               )}
+
             </button>
+
           </div>
+
         </div>
+
       </form>
     </main>
   );
-}
+};
+
+export default ListPropertyPage;
