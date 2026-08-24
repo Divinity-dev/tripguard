@@ -220,16 +220,26 @@ const ListPropertyPage = () => {
   const editId = searchParams.get("id");
 
   const isEditMode = Boolean(editId);
+  
 
   /*
    * FORM STATE
    */
 
   const [formData, setFormData] =
-    useState(initialFormData);
+  useState(initialFormData);
 
-  const [selectedAmenities, setSelectedAmenities] =
-    useState([]);
+const [unavailableDates, setUnavailableDates] =
+  useState([]);
+
+const [unavailableStartDate, setUnavailableStartDate] =
+  useState("");
+
+const [unavailableEndDate, setUnavailableEndDate] =
+  useState("");
+
+const [selectedAmenities, setSelectedAmenities] =
+  useState([]);
 
   const [rules, setRules] =
     useState(defaultRules);
@@ -764,6 +774,88 @@ const ListPropertyPage = () => {
         )
     );
   };
+
+  /*
+|--------------------------------------------------------------------------
+| ADD UNAVAILABLE DATE RANGE
+|--------------------------------------------------------------------------
+*/
+
+const addUnavailableDateRange = () => {
+  if (
+    !unavailableStartDate ||
+    !unavailableEndDate
+  ) {
+    return;
+  }
+
+  if (
+    unavailableEndDate <
+    unavailableStartDate
+  ) {
+    setErrors((current) => ({
+      ...current,
+      unavailableDates:
+        "The end date must be after or the same as the start date.",
+    }));
+
+    return;
+  }
+
+  /*
+   * Prevent duplicate/overlapping ranges.
+   */
+
+  const overlapsExistingRange =
+    unavailableDates.some(
+      (range) =>
+        unavailableStartDate <= range.end &&
+        unavailableEndDate >= range.start
+    );
+
+  if (overlapsExistingRange) {
+    setErrors((current) => ({
+      ...current,
+      unavailableDates:
+        "This date range overlaps an existing unavailable period.",
+    }));
+
+    return;
+  }
+
+  setUnavailableDates((current) => [
+    ...current,
+    {
+      id: `${unavailableStartDate}-${unavailableEndDate}-${Date.now()}`,
+      start: unavailableStartDate,
+      end: unavailableEndDate,
+    },
+  ]);
+
+  setUnavailableStartDate("");
+  setUnavailableEndDate("");
+
+  setErrors((current) => ({
+    ...current,
+    unavailableDates: "",
+  }));
+};
+
+/*
+|--------------------------------------------------------------------------
+| REMOVE UNAVAILABLE DATE RANGE
+|--------------------------------------------------------------------------
+*/
+
+const removeUnavailableDateRange = (
+  rangeId
+) => {
+  setUnavailableDates((current) =>
+    current.filter(
+      (range) => range.id !== rangeId
+    )
+  );
+};
 
   /*
   |--------------------------------------------------------------------------
@@ -2315,6 +2407,198 @@ const ListPropertyPage = () => {
 
           </div>
         </section>
+
+        {/* UNAVAILABLE DATES */}
+<section className="mt-8 rounded-[28px] border border-[#E2E3DC] bg-white p-6 shadow-sm sm:p-8">
+
+  <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#397A69]">
+    09
+  </p>
+
+  <h2 className="mt-2 text-2xl font-semibold">
+    Unavailable dates
+  </h2>
+
+  <p className="mt-2 text-sm leading-6 text-[#7A8581]">
+    Let travellers know when your property is unavailable for
+    bookings. These dates will be blocked on your property
+    calendar.
+  </p>
+
+  <div className="mt-8 rounded-2xl border border-[#DCE3E1] bg-[#F8FBF9] p-5">
+
+    <div className="grid gap-5 sm:grid-cols-2">
+
+      {/* START DATE */}
+      <div>
+
+        <label
+          htmlFor="unavailableStartDate"
+          className="mb-2 block text-sm font-semibold"
+        >
+          Unavailable from
+        </label>
+
+        <input
+          id="unavailableStartDate"
+          type="date"
+          value={unavailableStartDate}
+          min={new Date()
+            .toISOString()
+            .slice(0, 10)}
+          onChange={(event) => {
+            setUnavailableStartDate(
+              event.target.value
+            );
+
+            if (
+              errors.unavailableDates
+            ) {
+              setErrors((current) => ({
+                ...current,
+                unavailableDates: "",
+              }));
+            }
+          }}
+          className="h-12 w-full rounded-xl border border-[#DCE2DF] bg-white px-4 text-sm outline-none transition focus:border-[#397A69] focus:ring-2 focus:ring-[#397A69]/10"
+        />
+
+      </div>
+
+      {/* END DATE */}
+      <div>
+
+        <label
+          htmlFor="unavailableEndDate"
+          className="mb-2 block text-sm font-semibold"
+        >
+          Unavailable until
+        </label>
+
+        <input
+          id="unavailableEndDate"
+          type="date"
+          value={unavailableEndDate}
+          min={
+            unavailableStartDate ||
+            new Date()
+              .toISOString()
+              .slice(0, 10)
+          }
+          onChange={(event) => {
+            setUnavailableEndDate(
+              event.target.value
+            );
+
+            if (
+              errors.unavailableDates
+            ) {
+              setErrors((current) => ({
+                ...current,
+                unavailableDates: "",
+              }));
+            }
+          }}
+          className="h-12 w-full rounded-xl border border-[#DCE2DF] bg-white px-4 text-sm outline-none transition focus:border-[#397A69] focus:ring-2 focus:ring-[#397A69]/10"
+        />
+
+      </div>
+
+    </div>
+
+    {errors.unavailableDates && (
+      <p className="mt-3 text-xs text-red-500">
+        {errors.unavailableDates}
+      </p>
+    )}
+
+    <button
+      type="button"
+      onClick={addUnavailableDateRange}
+      className="mt-5 inline-flex h-11 items-center justify-center rounded-xl border border-[#173C37] px-5 text-sm font-semibold text-[#173C37] transition hover:bg-[#173C37] hover:text-white"
+    >
+      Add unavailable dates
+    </button>
+
+  </div>
+
+  {/* EXISTING UNAVAILABLE RANGES */}
+  {unavailableDates.length > 0 && (
+    <div className="mt-6">
+
+      <h3 className="text-sm font-semibold text-[#173C37]">
+        Blocked periods
+      </h3>
+
+      <div className="mt-3 space-y-3">
+
+        {unavailableDates.map(
+          (range) => (
+            <div
+              key={range.id}
+              className="flex items-center justify-between gap-4 rounded-xl border border-[#E2E6E3] bg-[#FAFBF9] px-4 py-3"
+            >
+
+              <div>
+                <p className="text-sm font-semibold text-[#173C37]">
+                  {new Date(
+                    `${range.start}T00:00:00`
+                  ).toLocaleDateString(
+                    "en-NG",
+                    {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    }
+                  )}
+
+                  {" – "}
+
+                  {new Date(
+                    `${range.end}T00:00:00`
+                  ).toLocaleDateString(
+                    "en-NG",
+                    {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    }
+                  )}
+                </p>
+
+                <p className="mt-1 text-xs text-[#8A9390]">
+                  Property unavailable during this period
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  removeUnavailableDateRange(
+                    range.id
+                  )
+                }
+                className="text-xs font-semibold text-[#9A6666] transition hover:text-red-600"
+              >
+                Remove
+              </button>
+
+            </div>
+          )
+        )}
+
+      </div>
+
+    </div>
+  )}
+
+  {unavailableDates.length === 0 && (
+    <p className="mt-5 text-xs text-[#9AA29F]">
+      No unavailable dates have been added yet.
+    </p>
+  )}
+
+</section>
 
         {/* TRIPGUARD NOTICE */}
         <section className="mt-8 rounded-[28px] bg-[#173C37] p-7 text-white sm:p-8">

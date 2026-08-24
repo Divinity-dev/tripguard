@@ -32,73 +32,8 @@ XCircle,
 import AdminSidebar from "@/component/admin/AdminSidebar";
 import AdminNavbar from "@/component/admin/AdminNavbar";
 
-const accommodations = {
-"1": {
-id: "1",
-name: "The Meridian House",
-type: "Hotel",
-status: "Approved",
-description:
-"A premium accommodation located in the heart of Lagos, offering comfortable rooms, modern amenities, and a secure environment for travellers.",
-images: [
-"https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1400&q=80",
-"https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1400&q=80",
-"https://images.unsplash.com/photo-1566665797739-1674de7a421a?auto=format&fit=crop&w=1400&q=80",
-"https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1400&q=80",
-],
-owner: {
-name: "Ibrahim Musa",
-email: "[ibrahim@example.com](mailto:ibrahim@example.com)",
-phone: "+234 803 456 7890",
-verified: true,
-},
-location: {
-address: "14 Admiralty Way",
-city: "Lekki",
-state: "Lagos",
-country: "Nigeria",
-},
-pricing: {
-nightly: "₦85,000",
-weekly: "₦550,000",
-monthly: "₦2,000,000",
-},
-rooms: 24,
-guests: 48,
-rating: 4.8,
-reviews: 126,
-bookings: 284,
-revenue: "₦18,420,000",
-amenities: [
-"Free Wi-Fi",
-"Swimming Pool",
-"24/7 Security",
-"Air Conditioning",
-"Parking",
-"Restaurant",
-"Gym",
-"Airport Shuttle",
-],
-submittedAt: "August 4, 2026",
-approvedAt: "August 5, 2026",
-website: "https://example.com",
-verification: {
-status: "Verified",
-documents: [
-"Business Registration",
-"Government ID",
-"Property Ownership Document",
-],
-},
-},
-};
 
-const statusStyles = {
-Approved: "bg-emerald-50 text-emerald-600",
-Pending: "bg-amber-50 text-amber-600",
-Suspended: "bg-red-50 text-red-600",
-Rejected: "bg-red-50 text-red-600",
-};
+
 
 const AccommodationDetailsPage = () => {
 const params = useParams();
@@ -124,13 +59,6 @@ accommodation.images.length
 );
 };
 
-const handleApprove = () => {
-alert("Accommodation approved successfully.");
-};
-
-const handleReject = () => {
-alert("Accommodation rejected.");
-};
 
 const handleSuspend = () => {
 setShowSuspendModal(false);
@@ -161,13 +89,6 @@ return ( <div className="min-h-screen bg-gray-50"> <AdminSidebar />
               <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">
                 {accommodation.name}
               </h1>
-
-              <span
-                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${statusStyles[accommodation.status]}`}
-              >
-                <CheckCircle2 size={13} />
-                {accommodation.status}
-              </span>
             </div>
 
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-500">
@@ -228,16 +149,7 @@ return ( <div className="min-h-screen bg-gray-50"> <AdminSidebar />
 
               {showActions && (
                 <div className="absolute right-0 top-12 z-20 w-48 overflow-hidden rounded-xl border border-gray-100 bg-white py-1 shadow-xl">
-                  {accommodation.status !== "Approved" && (
-                    <button
-                      type="button"
-                      onClick={handleApprove}
-                      className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-emerald-600 hover:bg-emerald-50"
-                    >
-                      <CheckCircle2 size={16} />
-                      Approve
-                    </button>
-                  )}
+                 
 
                   <button
                     type="button"
@@ -249,15 +161,6 @@ return ( <div className="min-h-screen bg-gray-50"> <AdminSidebar />
                   >
                     <Ban size={16} />
                     Suspend
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleReject}
-                    className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-gray-600 hover:bg-gray-50"
-                  >
-                    <XCircle size={16} />
-                    Reject
                   </button>
                 </div>
               )}
@@ -625,12 +528,6 @@ return ( <div className="min-h-screen bg-gray-50"> <AdminSidebar />
                   label="Submitted"
                   value={accommodation.submittedAt}
                 />
-
-                <InfoRow
-                  icon={ShieldCheck}
-                  label="Approved"
-                  value={accommodation.approvedAt}
-                />
               </div>
             </section>
           </div>
@@ -644,23 +541,13 @@ return ( <div className="min-h-screen bg-gray-50"> <AdminSidebar />
                 Administrative Actions
               </h2>
 
-              <p className="mt-1 text-sm text-gray-500">
-                Manage the visibility and approval status of this
-                accommodation.
-              </p>
+             <p className="mt-1 text-sm text-gray-500">
+  Manage the availability and visibility of this accommodation.
+</p>
             </div>
 
             <div className="flex flex-wrap gap-2">
-              {accommodation.status !== "Approved" && (
-                <button
-                  type="button"
-                  onClick={handleApprove}
-                  className="inline-flex items-center gap-2 rounded-xl bg-[#63E6BE] px-4 py-2.5 text-sm font-semibold text-gray-900 transition hover:bg-[#4fd9ad]"
-                >
-                  <CheckCircle2 size={17} />
-                  Approve
-                </button>
-              )}
+           
 
               <button
                 type="button"
