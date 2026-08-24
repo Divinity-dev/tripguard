@@ -71,11 +71,9 @@ export default function OwnerPage() {
 
   const bookings = bookingsData?.bookings || [];
 
-  const activeProperties = properties.filter(
-    (property) =>
-      property.status === "approved" &&
-      property.isAvailable
-  ).length;
+ const activeProperties = properties.filter(
+  (property) => property.isAvailable
+).length;
 
   const totalBookings = bookings.length;
 
@@ -448,17 +446,17 @@ const handleCancelBooking = () => {
                               {property.name}
                             </h3>
 
-                            {property.status === "approved" ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-[#E1F5ED] px-2.5 py-1 text-[10px] font-bold text-[#277765]">
-                                <CircleCheck className="h-3 w-3" />
-                                Active
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-[#FFF4D6] px-2.5 py-1 text-[10px] font-bold text-[#967126]">
-                                <Clock3 className="h-3 w-3" />
-                                Pending
-                              </span>
-                            )}
+                            {property.isAvailable ? (
+  <span className="inline-flex items-center gap-1 rounded-full bg-[#E1F5ED] px-2.5 py-1 text-[10px] font-bold text-[#277765]">
+    <CircleCheck className="h-3 w-3" />
+    Active
+  </span>
+) : (
+  <span className="inline-flex items-center gap-1 rounded-full bg-[#FFF4D6] px-2.5 py-1 text-[10px] font-bold text-[#967126]">
+    <Clock3 className="h-3 w-3" />
+    Unavailable
+  </span>
+)}
                           </div>
 
                           <p className="mt-1 text-xs text-[#7A8581]">

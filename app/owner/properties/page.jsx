@@ -346,12 +346,7 @@ const PropertyCard = ({ property }) => {
                 }`}
               />
 
-              {property.status === "approved"
-                ? property.isAvailable
-                  ? "Active"
-                  : "Unavailable"
-                : property.status.charAt(0).toUpperCase() +
-                  property.status.slice(1)}
+              {property.isAvailable ? "Active" : "Unavailable"}
             </span>
           </div>
         </div>
