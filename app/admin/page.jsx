@@ -7,6 +7,7 @@ import {
   ArrowRight,
   BarChart3,
   Bell,
+    Mail,
   CalendarDays,
   CheckCircle2,
   ChevronRight,
@@ -863,12 +864,18 @@ const AdminDashboard = () => {
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                     <QuickAction
                       href="/admin/accommodations"
                       icon={Hotel}
                       label="Accommodations"
                     />
+
+                    <QuickAction
+  href="/admin/email-users"
+  icon={Mail}
+  label="Send Email"
+/>
 
                     <QuickAction
                       href="/admin/bookings"

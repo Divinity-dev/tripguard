@@ -8,6 +8,10 @@ const initialState = {
   error: null,
   message: null,
 
+  // Email verification
+  verificationEmail: null,
+  emailVerificationRequired: false,
+
   // Password reset
   resetEmail: null,
   otpVerified: false,
@@ -30,12 +34,76 @@ const authSlice = createSlice({
     },
 
     // =========================
+    // Registration Success
+    // =========================
+
+    registrationSuccess: (state, action) => {
+      state.loading = false;
+      state.error = null;
+
+      state.message =
+        action.payload?.message ||
+        "Account created successfully. Please verify your email.";
+
+      state.verificationEmail =
+        action.payload?.email || null;
+
+      state.emailVerificationRequired = true;
+
+      /*
+       * Registration does NOT authenticate the user.
+       */
+      state.user = null;
+      state.isAuthenticated = false;
+    },
+
+    // =========================
+    // Email Verification Required
+    // =========================
+
+    setEmailVerificationRequired: (state, action) => {
+      state.emailVerificationRequired =
+        action.payload?.required ?? true;
+
+      if (action.payload?.email) {
+        state.verificationEmail =
+          action.payload.email;
+      }
+    },
+
+    // =========================
+    // Email Verification Success
+    // =========================
+
+    emailVerificationSuccess: (state, action) => {
+      state.loading = false;
+      state.error = null;
+
+      state.message =
+        action.payload?.message ||
+        "Email verified successfully.";
+
+      state.emailVerificationRequired = false;
+      state.verificationEmail = null;
+    },
+
+    // =========================
+    // Clear Email Verification
+    // =========================
+
+    clearEmailVerification: (state) => {
+      state.verificationEmail = null;
+      state.emailVerificationRequired = false;
+    },
+
+    // =========================
     // Forgot Password Success
     // =========================
 
     forgotPasswordSuccess: (state, action) => {
       state.loading = false;
       state.error = null;
+
       state.message =
         action.payload?.message ||
         "Password reset OTP sent successfully.";
@@ -50,9 +118,18 @@ const authSlice = createSlice({
       state.error = null;
 
       state.user = action.payload.user || null;
-      state.isAuthenticated = !!action.payload.user;
+      state.isAuthenticated =
+        !!action.payload.user;
 
-      state.message = action.payload.message || null;
+      state.message =
+        action.payload.message || null;
+
+      /*
+       * A successfully authenticated user no longer
+       * needs email verification.
+       */
+      state.emailVerificationRequired = false;
+      state.verificationEmail = null;
     },
 
     // =========================
@@ -61,8 +138,11 @@ const authSlice = createSlice({
 
     authFailure: (state, action) => {
       state.loading = false;
+
       state.error =
-        action.payload || "Something went wrong.";
+        action.payload ||
+        "Something went wrong.";
+
       state.message = null;
     },
 
@@ -72,7 +152,10 @@ const authSlice = createSlice({
 
     setUser: (state, action) => {
       state.user = action.payload;
-      state.isAuthenticated = !!action.payload;
+
+      state.isAuthenticated =
+        !!action.payload;
+
       state.loading = false;
     },
 
@@ -103,7 +186,9 @@ const authSlice = createSlice({
     otpVerificationSuccess: (state, action) => {
       state.loading = false;
       state.error = null;
+
       state.otpVerified = true;
+
       state.message =
         action.payload?.message ||
         "OTP verified successfully.";
@@ -112,6 +197,7 @@ const authSlice = createSlice({
     resetPasswordSuccess: (state, action) => {
       state.loading = false;
       state.error = null;
+
       state.message =
         action.payload?.message ||
         "Password reset successfully.";
@@ -137,6 +223,9 @@ const authSlice = createSlice({
       state.error = null;
       state.message = null;
 
+      state.verificationEmail = null;
+      state.emailVerificationRequired = false;
+
       state.resetEmail = null;
       state.otpVerified = false;
     },
@@ -145,17 +234,33 @@ const authSlice = createSlice({
 
 export const {
   authRequestStart,
+
+  // Registration / email verification
+  registrationSuccess,
+  setEmailVerificationRequired,
+  emailVerificationSuccess,
+  clearEmailVerification,
+
+  // Authentication
   authSuccess,
   authFailure,
   setUser,
+
+  // General auth UI
   clearAuthError,
   clearAuthMessage,
+
+  // Password reset
   setResetEmail,
   otpVerificationSuccess,
   resetPasswordSuccess,
   clearPasswordReset,
-  forgotPasswordSuccess,
+
+  // Logout
   logout,
+
+  // Forgot password
+  forgotPasswordSuccess,
 } = authSlice.actions;
 
 export default authSlice.reducer;
