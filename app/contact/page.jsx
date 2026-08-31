@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import emailjs from "@emailjs/browser";
 import {
   ArrowRight,
   Mail,
@@ -10,6 +11,8 @@ import {
   Send,
   Building2,
   Headphones,
+  CheckCircle,
+  AlertCircle,
 } from "lucide-react";
 
 const ContactPage = () => {
@@ -20,6 +23,12 @@ const ContactPage = () => {
     message: "",
   });
 
+  const [isSending, setIsSending] = useState(false);
+  const [status, setStatus] = useState({
+    type: "",
+    message: "",
+  });
+
   const handleChange = (event) => {
     const { name, value } = event.target;
 
@@ -27,13 +36,68 @@ const ContactPage = () => {
       ...prev,
       [name]: value,
     }));
+
+    // Remove previous status when the user starts editing again
+    if (status.message) {
+      setStatus({
+        type: "",
+        message: "",
+      });
+    }
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
-    // Connect this to your backend/email service later.
-    console.log("Contact form submitted:", formData);
+    if (isSending) return;
+
+    setIsSending(true);
+
+    setStatus({
+      type: "",
+      message: "",
+    });
+
+    try {
+      const templateParams = {
+        name: formData.name,
+        email: formData.email,
+        subject: formData.subject,
+        message: formData.message,
+      };
+
+      await emailjs.send(
+        process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID,
+        process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID,
+        templateParams,
+        {
+          publicKey: process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY,
+        }
+      );
+
+      setStatus({
+        type: "success",
+        message:
+          "Your message has been sent successfully. We'll get back to you as soon as possible.",
+      });
+
+      setFormData({
+        name: "",
+        email: "",
+        subject: "",
+        message: "",
+      });
+    } catch (error) {
+      console.error("EmailJS error:", error);
+
+      setStatus({
+        type: "error",
+        message:
+          "We couldn't send your message right now. Please try again in a moment.",
+      });
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const contactOptions = [
@@ -208,8 +272,9 @@ const ContactPage = () => {
                   value={formData.name}
                   onChange={handleChange}
                   required
+                  disabled={isSending}
                   placeholder="Your name"
-                  className="w-full rounded-xl border border-[#DCDDD7] bg-white px-4 py-3 text-sm text-[#172322] outline-none transition placeholder:text-[#A0A9A5] focus:border-[#397A69] focus:ring-2 focus:ring-[#63E6BE]/20"
+                  className="w-full rounded-xl border border-[#DCDDD7] bg-white px-4 py-3 text-sm text-[#172322] outline-none transition placeholder:text-[#A0A9A5] focus:border-[#397A69] focus:ring-2 focus:ring-[#63E6BE]/20 disabled:cursor-not-allowed disabled:bg-[#F5F6F4]"
                 />
               </div>
 
@@ -228,8 +293,9 @@ const ContactPage = () => {
                   value={formData.email}
                   onChange={handleChange}
                   required
+                  disabled={isSending}
                   placeholder="you@example.com"
-                  className="w-full rounded-xl border border-[#DCDDD7] bg-white px-4 py-3 text-sm text-[#172322] outline-none transition placeholder:text-[#A0A9A5] focus:border-[#397A69] focus:ring-2 focus:ring-[#63E6BE]/20"
+                  className="w-full rounded-xl border border-[#DCDDD7] bg-white px-4 py-3 text-sm text-[#172322] outline-none transition placeholder:text-[#A0A9A5] focus:border-[#397A69] focus:ring-2 focus:ring-[#63E6BE]/20 disabled:cursor-not-allowed disabled:bg-[#F5F6F4]"
                 />
               </div>
             </div>
@@ -248,7 +314,8 @@ const ContactPage = () => {
                 value={formData.subject}
                 onChange={handleChange}
                 required
-                className="w-full rounded-xl border border-[#DCDDD7] bg-white px-4 py-3 text-sm text-[#172322] outline-none transition focus:border-[#397A69] focus:ring-2 focus:ring-[#63E6BE]/20"
+                disabled={isSending}
+                className="w-full rounded-xl border border-[#DCDDD7] bg-white px-4 py-3 text-sm text-[#172322] outline-none transition focus:border-[#397A69] focus:ring-2 focus:ring-[#63E6BE]/20 disabled:cursor-not-allowed disabled:bg-[#F5F6F4]"
               >
                 <option value="">Select a subject</option>
                 <option value="general">General enquiry</option>
@@ -274,18 +341,42 @@ const ContactPage = () => {
                 value={formData.message}
                 onChange={handleChange}
                 required
+                disabled={isSending}
                 rows={6}
                 placeholder="Tell us how we can help..."
-                className="w-full resize-none rounded-xl border border-[#DCDDD7] bg-white px-4 py-3 text-sm text-[#172322] outline-none transition placeholder:text-[#A0A9A5] focus:border-[#397A69] focus:ring-2 focus:ring-[#63E6BE]/20"
+                className="w-full resize-none rounded-xl border border-[#DCDDD7] bg-white px-4 py-3 text-sm text-[#172322] outline-none transition placeholder:text-[#A0A9A5] focus:border-[#397A69] focus:ring-2 focus:ring-[#63E6BE]/20 disabled:cursor-not-allowed disabled:bg-[#F5F6F4]"
               />
             </div>
 
+            {/* STATUS MESSAGE */}
+            {status.message && (
+              <div
+                className={`mt-5 flex items-start gap-3 rounded-xl px-4 py-3 text-sm ${
+                  status.type === "success"
+                    ? "bg-[#E1F5ED] text-[#277765]"
+                    : "bg-red-50 text-red-600"
+                }`}
+              >
+                {status.type === "success" ? (
+                  <CheckCircle className="mt-0.5 h-5 w-5 shrink-0" />
+                ) : (
+                  <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+                )}
+
+                <p>{status.message}</p>
+              </div>
+            )}
+
             <button
               type="submit"
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#173C37] px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-[#23584E]"
+              disabled={isSending}
+              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#173C37] px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-[#23584E] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Send message
-              <Send className="h-4 w-4 text-[#63E6BE]" />
+              {isSending ? "Sending..." : "Send message"}
+
+              {!isSending && (
+                <Send className="h-4 w-4 text-[#63E6BE]" />
+              )}
             </button>
 
             <p className="mt-4 text-center text-xs leading-5 text-[#9AA39F]">

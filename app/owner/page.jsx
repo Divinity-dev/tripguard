@@ -26,8 +26,10 @@ import {
 } from "@tanstack/react-query";
 import API from "@/axios/index";
 import { useState } from "react";
+import { useSelector } from "react-redux";
 
 export default function OwnerPage() {
+  const user = useSelector((state) => state.auth.user);
 
   const queryClient = useQueryClient();
 
@@ -344,21 +346,37 @@ const handleCancelBooking = () => {
                 </p>
 
                 <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
-                  Welcome back
-                </h1>
+  Welcome back{user?.firstName ? `, ${user.firstName}` : ""}
+</h1>
 
                 <p className="mt-2 text-sm text-[#75817D]">
                   Here's what's happening with your properties.
                 </p>
               </div>
 
-              <Link
-                href="/owner/properties/new"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#173C37] px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-[#23584E]"
-              >
-                <Plus className="h-4 w-4" />
-                Add property
-              </Link>
+              <div className="flex flex-wrap items-center gap-3">
+  <Link
+    href="/owner/account"
+    className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#DCE2DF] bg-white px-5 py-3.5 text-sm font-semibold text-[#173C37] transition hover:border-[#173C37] hover:bg-[#F7F8F4]"
+  >
+    Account
+  </Link>
+
+  <Link
+    href="/owner/profile"
+    className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#DCE2DF] bg-white px-5 py-3.5 text-sm font-semibold text-[#173C37] transition hover:border-[#173C37] hover:bg-[#F7F8F4]"
+  >
+    Profile
+  </Link>
+
+  <Link
+    href="/owner/properties/new"
+    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#173C37] px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-[#23584E]"
+  >
+    <Plus className="h-4 w-4" />
+    Add property
+  </Link>
+</div>
             </div>
           </div>
         </section>

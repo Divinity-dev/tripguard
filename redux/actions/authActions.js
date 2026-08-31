@@ -20,12 +20,20 @@ export const registerUser = (formData) => async (dispatch) => {
   try {
     dispatch(authRequestStart());
 
-    const response = await API.post("/auth/register", formData);
+    const response = await API.post(
+      "/auth/register",
+      formData
+    );
 
-    // Authentication is handled by the HTTP-only cookie
-    // set by the backend. No token is stored in localStorage.
-    dispatch(authSuccess(response.data));
-
+    /*
+     * IMPORTANT:
+     * Registration no longer authenticates the user.
+     *
+     * The backend creates the account as unverified and
+     * sends a verification email.
+     *
+     * Therefore, do NOT dispatch authSuccess here.
+     */
     return response.data;
   } catch (error) {
     const message =
@@ -37,6 +45,65 @@ export const registerUser = (formData) => async (dispatch) => {
     throw new Error(message);
   }
 };
+
+// =========================
+// Verify Email
+// =========================
+
+export const verifyEmail =
+  (token, email) => async (dispatch) => {
+    try {
+      dispatch(authRequestStart());
+
+      const response = await API.get(
+        "/auth/verify-email",
+        {
+          params: {
+            token,
+            email,
+          },
+        }
+      );
+
+      return response.data;
+    } catch (error) {
+      const message =
+        error.response?.data?.message ||
+        "Unable to verify your email address.";
+
+      dispatch(authFailure(message));
+
+      throw new Error(message);
+    }
+  };
+
+// =========================
+// Resend Verification Email
+// =========================
+
+export const resendVerificationEmail =
+  (email) => async (dispatch) => {
+    try {
+      dispatch(authRequestStart());
+
+      const response = await API.post(
+        "/auth/resend-verification",
+        {
+          email,
+        }
+      );
+
+      return response.data;
+    } catch (error) {
+      const message =
+        error.response?.data?.message ||
+        "Unable to resend verification email.";
+
+      dispatch(authFailure(message));
+
+      throw new Error(message);
+    }
+  };
 
 // =========================
 // Login
@@ -63,7 +130,22 @@ export const loginUser = (credentials) => async (dispatch) => {
 
     dispatch(authFailure(message));
 
-    throw new Error(message);
+    /*
+     * Preserve the complete backend response so the UI can
+     * determine whether the user needs email verification.
+     */
+    const verificationRequired =
+      error.response?.data?.emailVerificationRequired;
+
+    const verificationError = new Error(message);
+
+    verificationError.emailVerificationRequired =
+      verificationRequired || false;
+
+    verificationError.email =
+      credentials.email;
+
+    throw verificationError;
   }
 };
 
