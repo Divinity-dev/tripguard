@@ -1,6 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   CalendarDays,
   Users,
@@ -16,17 +20,26 @@ const BookStayModal = ({
   onSubmit = () => {},
   accommodation = null,
 }) => {
-  const [checkInDate, setCheckInDate] = useState(null);
-  const [checkOutDate, setCheckOutDate] = useState(null);
+  const [checkInDate, setCheckInDate] =
+    useState(null);
+
+  const [checkOutDate, setCheckOutDate] =
+    useState(null);
+
   const [guests, setGuests] = useState(1);
+
   const [error, setError] = useState("");
-  const [activeCalendar, setActiveCalendar] = useState(null);
+
+  const [activeCalendar, setActiveCalendar] =
+    useState(null);
+
+  const [checkingAvailability, setCheckingAvailability] =
+    useState(false);
+
+  const [isAvailable, setIsAvailable] =
+    useState(null);
 
   const router = useRouter();
-
-  if (!isOpen) {
-    return null;
-  }
 
   const accommodationId =
     accommodation?._id || accommodation?.id;
@@ -43,7 +56,7 @@ const BookStayModal = ({
   /*
    * Convert a Date into YYYY-MM-DD.
    *
-   * We deliberately use the local date components instead
+   * We deliberately use local date components instead
    * of toISOString() so that Nigeria timezone does not
    * shift the selected date backwards by one day.
    */
@@ -51,9 +64,11 @@ const BookStayModal = ({
     if (!date) return "";
 
     const year = date.getFullYear();
+
     const month = String(
       date.getMonth() + 1
     ).padStart(2, "0");
+
     const day = String(
       date.getDate()
     ).padStart(2, "0");
@@ -158,6 +173,151 @@ const BookStayModal = ({
 
   /*
    * ==================================================
+   * CHECK BOOKING AVAILABILITY
+   * ==================================================
+   *
+   * This checks the backend as soon as both dates
+   * have been selected.
+   *
+   * IMPORTANT:
+   * The backend only considers:
+   *
+   * - confirmed
+   * - checked-in
+   *
+   * bookings as blocking dates.
+   *
+   * Pending bookings do NOT block dates.
+   */
+
+  useEffect(() => {
+    if (
+      !isOpen ||
+      !accommodationId ||
+      !checkInDate ||
+      !checkOutDate
+    ) {
+      setCheckingAvailability(false);
+      setIsAvailable(null);
+      return;
+    }
+
+    if (checkOutDate <= checkInDate) {
+      setCheckingAvailability(false);
+      setIsAvailable(null);
+      return;
+    }
+
+    const controller =
+      new AbortController();
+
+    const checkAvailability =
+      async () => {
+        try {
+          setCheckingAvailability(true);
+          setIsAvailable(null);
+          setError("");
+
+          const formattedCheckIn =
+            formatDate(checkInDate);
+
+          const formattedCheckOut =
+            formatDate(checkOutDate);
+
+          const apiUrl =
+            process.env.NEXT_PUBLIC_API_URL;
+
+          if (!apiUrl) {
+            throw new Error(
+              "API URL is not configured."
+            );
+          }
+
+          const params =
+            new URLSearchParams({
+              accommodation: accommodationId,
+              checkInDate:
+                formattedCheckIn,
+              checkOutDate:
+                formattedCheckOut,
+            });
+
+          const response = await fetch(
+            `${apiUrl}/bookings/availability?${params.toString()}`,
+            {
+              method: "GET",
+              signal:
+                controller.signal,
+            }
+          );
+
+          const data =
+            await response.json();
+
+          if (!response.ok) {
+            throw new Error(
+              data?.message ||
+                "Unable to check date availability."
+            );
+          }
+
+          if (data.available) {
+            setIsAvailable(true);
+            setError("");
+          } else {
+            setIsAvailable(false);
+
+            setError(
+              data?.message ||
+                "These dates have already been booked. Please select different dates."
+            );
+          }
+        } catch (availabilityError) {
+          /*
+           * Ignore aborted requests because a new date
+           * selection has already started another check.
+           */
+          if (
+            availabilityError?.name ===
+            "AbortError"
+          ) {
+            return;
+          }
+
+          console.error(
+            "Availability check error:",
+            availabilityError
+          );
+
+          setIsAvailable(false);
+
+          setError(
+            availabilityError?.message ||
+              "Unable to check availability. Please try again."
+          );
+        } finally {
+          if (
+            !controller.signal.aborted
+          ) {
+            setCheckingAvailability(false);
+          }
+        }
+      };
+
+    checkAvailability();
+
+    return () => {
+      controller.abort();
+    };
+  }, [
+    isOpen,
+    accommodationId,
+    checkInDate,
+    checkOutDate,
+  ]);
+
+  /*
+   * ==================================================
    * HANDLE CHECK-IN
    * ==================================================
    */
@@ -170,6 +330,12 @@ const BookStayModal = ({
     setCheckInDate(date);
 
     /*
+     * Any previous availability result is now stale.
+     */
+    setIsAvailable(null);
+    setError("");
+
+    /*
      * If the existing checkout is now before
      * or equal to the new check-in date,
      * clear it.
@@ -180,8 +346,6 @@ const BookStayModal = ({
     ) {
       setCheckOutDate(null);
     }
-
-    setError("");
 
     /*
      * Move the traveller directly to
@@ -205,6 +369,8 @@ const BookStayModal = ({
       checkInDate &&
       date <= checkInDate
     ) {
+      setIsAvailable(null);
+
       setError(
         "Check-out date must be after the check-in date."
       );
@@ -212,8 +378,16 @@ const BookStayModal = ({
       return;
     }
 
-    setCheckOutDate(date);
+    /*
+     * Selecting a new checkout date makes any previous
+     * availability result stale.
+     *
+     * The useEffect above will immediately check the
+     * newly selected date range.
+     */
+    setIsAvailable(null);
     setError("");
+    setCheckOutDate(date);
   };
 
   /*
@@ -263,7 +437,40 @@ const BookStayModal = ({
     }
 
     /*
-     * Convert selected dates back into the
+     * Do not allow payment to continue until the
+     * availability check has completed.
+     */
+    if (checkingAvailability) {
+      setError(
+        "Checking date availability. Please wait a moment."
+      );
+      return;
+    }
+
+    /*
+     * If the backend says these dates are unavailable,
+     * stop the booking flow.
+     */
+    if (isAvailable === false) {
+      setError(
+        "These dates have already been booked. Please select different dates."
+      );
+      return;
+    }
+
+    /*
+     * We should never reach this point without a
+     * successful availability check.
+     */
+    if (isAvailable !== true) {
+      setError(
+        "Please wait while we confirm that your selected dates are available."
+      );
+      return;
+    }
+
+    /*
+     * Convert selected dates into the
      * YYYY-MM-DD format expected by the
      * existing booking/payment flow.
      */
@@ -290,7 +497,8 @@ const BookStayModal = ({
      * We do NOT create the booking here.
      *
      * PaymentPage will create the booking.
-     * The backend remains the source of truth
+     *
+     * The backend remains the final source of truth
      * for price and availability.
      */
     const params = new URLSearchParams({
@@ -334,6 +542,16 @@ const BookStayModal = ({
         }
       )
     : "Select date";
+
+  /*
+   * ==================================================
+   * MODAL
+   * ==================================================
+   */
+
+  if (!isOpen) {
+    return null;
+  }
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
@@ -592,10 +810,28 @@ const BookStayModal = ({
           </div>
 
           {/* =========================================
+              AVAILABILITY STATUS
+          ========================================= */}
+
+          {checkingAvailability && (
+            <div className="rounded-xl bg-[#F0F7F4] px-4 py-3 text-sm leading-5 text-[#397A69]">
+              Checking availability for your
+              selected dates...
+            </div>
+          )}
+
+          {isAvailable === true &&
+            !checkingAvailability && (
+              <div className="rounded-xl bg-green-50 px-4 py-3 text-sm leading-5 text-green-700">
+                ✓ These dates are available.
+              </div>
+            )}
+
+          {/* =========================================
               ERROR
           ========================================= */}
 
-          {error && (
+          {error && !checkingAvailability && (
             <div className="rounded-xl bg-red-50 px-4 py-3 text-sm leading-5 text-red-600">
               {error}
             </div>
@@ -617,9 +853,20 @@ const BookStayModal = ({
 
             <button
               type="submit"
-              className="rounded-xl bg-[#173C37] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#23584E]"
+              disabled={
+                checkingAvailability ||
+                isAvailable !== true
+              }
+              className={`rounded-xl px-5 py-3 text-sm font-semibold text-white transition ${
+                checkingAvailability ||
+                isAvailable !== true
+                  ? "cursor-not-allowed bg-[#9AA8A4]"
+                  : "bg-[#173C37] hover:bg-[#23584E]"
+              }`}
             >
-              Continue to payment
+              {checkingAvailability
+                ? "Checking..."
+                : "Continue to payment"}
             </button>
 
           </div>

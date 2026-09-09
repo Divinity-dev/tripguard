@@ -11,6 +11,8 @@ import {
   LogIn,
   LogOut,
   ArrowRight,
+  CreditCard,
+  XCircle,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -49,7 +51,10 @@ export default function TravellerBookingsPage() {
 
       const data = await response.json();
 
-      console.log("Traveller bookings response:", data);
+      console.log(
+        "Traveller bookings response:",
+        data
+      );
 
       if (!response.ok) {
         throw new Error(
@@ -133,6 +138,9 @@ export default function TravellerBookingsPage() {
    * --------------------------------------------------
    * SORT UPCOMING BOOKINGS
    * --------------------------------------------------
+   *
+   * All upcoming bookings are displayed.
+   * The earliest check-in appears first.
    */
 
   const sortedUpcomingBookings =
@@ -142,21 +150,18 @@ export default function TravellerBookingsPage() {
         new Date(b.checkInDate)
     );
 
-  const upcomingBooking =
-    sortedUpcomingBookings[0] || null;
-
   /*
    * --------------------------------------------------
    * SORT ACTIVE BOOKINGS
    * --------------------------------------------------
    */
 
-  const activeBooking =
+  const sortedActiveBookings =
     [...activeBookings].sort(
       (a, b) =>
         new Date(a.checkOutDate) -
         new Date(b.checkOutDate)
-    )[0] || null;
+    );
 
   /*
    * --------------------------------------------------
@@ -291,7 +296,7 @@ export default function TravellerBookingsPage() {
             icon={<Clock3 size={20} />}
             title="Upcoming"
             value={upcomingCount}
-            description="Your next trips"
+            description="Your upcoming trips"
           />
 
           <SummaryCard
@@ -310,16 +315,16 @@ export default function TravellerBookingsPage() {
         </section>
 
         {/* ==========================================
-            UPCOMING TRIP
+            UPCOMING TRIPS
             ========================================== */}
 
         <section className="mt-10">
           <SectionHeading
-            title="Upcoming Trip"
-            description="Your next TripGuard-protected stay."
+            title="Upcoming Trips"
+            description="All your upcoming TripGuard-protected stays."
           />
 
-          {!upcomingBooking ? (
+          {sortedUpcomingBookings.length === 0 ? (
             <EmptyState
               title="No upcoming trips"
               description="You don't have any upcoming bookings at the moment."
@@ -327,14 +332,22 @@ export default function TravellerBookingsPage() {
               href="/accommodations"
             />
           ) : (
-            <UpcomingBookingCard
-              booking={upcomingBooking}
-            />
+            <div className="mt-5 space-y-6">
+              {sortedUpcomingBookings.map(
+                (booking) => (
+                  <UpcomingBookingCard
+                    key={booking._id}
+                    booking={booking}
+                    onRefresh={fetchBookings}
+                  />
+                )
+              )}
+            </div>
           )}
         </section>
 
         {/* ==========================================
-            ACTIVE STAY
+            ACTIVE STAYS
             ========================================== */}
 
         <section className="mt-10">
@@ -343,16 +356,23 @@ export default function TravellerBookingsPage() {
             description="Your current TripGuard-protected accommodation."
           />
 
-          {!activeBooking ? (
+          {sortedActiveBookings.length === 0 ? (
             <EmptyState
               title="No active stay"
               description="You are not currently checked into an accommodation."
             />
           ) : (
-            <ActiveBookingCard
-              booking={activeBooking}
-              onRefresh={fetchBookings}
-            />
+            <div className="mt-5 space-y-6">
+              {sortedActiveBookings.map(
+                (booking) => (
+                  <ActiveBookingCard
+                    key={booking._id}
+                    booking={booking}
+                    onRefresh={fetchBookings}
+                  />
+                )
+              )}
+            </div>
           )}
         </section>
 
@@ -397,7 +417,11 @@ export default function TravellerBookingsPage() {
 
 function UpcomingBookingCard({
   booking,
+  onRefresh,
 }) {
+  const [cancelling, setCancelling] =
+    useState(false);
+
   const accommodation =
     booking.accommodation;
 
@@ -425,8 +449,93 @@ function UpcomingBookingCard({
     accommodation?.averageRating ||
     "—";
 
+  /*
+   * --------------------------------------------------
+   * PENDING PAYMENT
+   * --------------------------------------------------
+   */
+
+  const isPendingPayment =
+    booking.bookingStatus ===
+      "pending" &&
+    booking.paymentStatus ===
+      "pending";
+
+  /*
+   * --------------------------------------------------
+   * CANCEL BOOKING
+   * --------------------------------------------------
+   */
+
+  const handleCancelBooking =
+    async () => {
+      const confirmed =
+        window.confirm(
+          "Are you sure you want to cancel this booking?"
+        );
+
+      if (!confirmed) {
+        return;
+      }
+
+      try {
+        setCancelling(true);
+
+        const apiUrl =
+          process.env
+            .NEXT_PUBLIC_API_URL;
+
+        if (!apiUrl) {
+          throw new Error(
+            "NEXT_PUBLIC_API_URL is not configured"
+          );
+        }
+
+        const response =
+          await fetch(
+            `${apiUrl}/bookings/${booking._id}/cancel`,
+            {
+              method: "PUT",
+              credentials: "include",
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+              body: JSON.stringify({
+                reason:
+                  "Cancelled by traveller",
+              }),
+            }
+          );
+
+        const data =
+          await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            data.message ||
+              "Unable to cancel booking."
+          );
+        }
+
+        await onRefresh();
+      } catch (error) {
+        console.error(
+          "Cancel booking error:",
+          error
+        );
+
+        alert(
+          error.message ||
+            "Unable to cancel booking."
+        );
+      } finally {
+        setCancelling(false);
+      }
+    };
+
   return (
-    <div className="mt-5 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
       <div className="grid lg:grid-cols-[280px_1fr]">
         {/* Image */}
         <div className="relative h-56 lg:h-full lg:min-h-[280px]">
@@ -439,6 +548,9 @@ function UpcomingBookingCard({
           <BookingStatusBadge
             status={
               booking.bookingStatus
+            }
+            paymentStatus={
+              booking.paymentStatus
             }
           />
         </div>
@@ -508,24 +620,59 @@ function UpcomingBookingCard({
             />
           </div>
 
-          {/* Protection */}
-          <div className="flex gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-500">
-              <ShieldCheck size={20} />
-            </div>
+          {/* Pending Payment Notice */}
+          {isPendingPayment ? (
+            <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4">
+              <div className="flex gap-3">
+                <Clock3
+                  size={20}
+                  className="mt-0.5 shrink-0 text-yellow-600"
+                />
 
-            <div>
-              <p className="text-sm font-semibold">
-                TripGuard Protection
-              </p>
+                <div>
+                  <p className="text-sm font-semibold text-yellow-800">
+                    Payment Pending
+                  </p>
 
-              <p className="mt-1 text-xs leading-5 text-gray-500">
-                Check in on your arrival date
-                and provide a trusted contact's
-                email to activate protection.
-              </p>
+                  <p className="mt-1 text-xs leading-5 text-yellow-700">
+                    Your booking has been
+                    created, but payment has
+                    not been completed yet.
+                    Complete your payment to
+                    confirm your stay.
+                  </p>
+
+                  <p className="mt-2 text-xs font-medium text-yellow-700">
+                    Unpaid bookings are
+                    automatically cancelled
+                    after 24 hours.
+                  </p>
+                </div>
+              </div>
             </div>
-          </div>
+          ) : (
+            /* Protection */
+            <div className="flex gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-500">
+                <ShieldCheck
+                  size={20}
+                />
+              </div>
+
+              <div>
+                <p className="text-sm font-semibold">
+                  TripGuard Protection
+                </p>
+
+                <p className="mt-1 text-xs leading-5 text-gray-500">
+                  Check in on your arrival
+                  date and provide a trusted
+                  contact's email to activate
+                  protection.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="mt-5 flex flex-col gap-3 sm:flex-row">
@@ -537,15 +684,58 @@ function UpcomingBookingCard({
               <ArrowRight size={16} />
             </Link>
 
-            {booking.bookingStatus ===
-              "confirmed" && (
-              <Link
-                href={`/traveller/bookings/${booking._id}`}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#16a765] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#128c55]"
-              >
-                <LogIn size={17} />
-                Check In
-              </Link>
+            {isPendingPayment ? (
+              <>
+                <Link
+                  href={`/payment?bookingId=${booking._id}`}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#16a765] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#128c55]"
+                >
+                  <CreditCard
+                    size={17}
+                  />
+
+                  Continue Payment
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={
+                    handleCancelBooking
+                  }
+                  disabled={cancelling}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-red-200 px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {cancelling ? (
+                    <>
+                      <Clock3
+                        size={17}
+                        className="animate-spin"
+                      />
+
+                      Cancelling...
+                    </>
+                  ) : (
+                    <>
+                      <XCircle
+                        size={17}
+                      />
+
+                      Cancel Booking
+                    </>
+                  )}
+                </button>
+              </>
+            ) : (
+              booking.bookingStatus ===
+                "confirmed" && (
+                <Link
+                  href={`/traveller/bookings/${booking._id}`}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#16a765] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#128c55]"
+                >
+                  <LogIn size={17} />
+                  Check In
+                </Link>
+              )
             )}
           </div>
         </div>
@@ -875,7 +1065,12 @@ function CompletedBookingCard({
 
 function BookingStatusBadge({
   status,
+  paymentStatus,
 }) {
+  const isPendingPayment =
+    status === "pending" &&
+    paymentStatus === "pending";
+
   const statusText = {
     confirmed: "Confirmed",
     pending: "Pending",
@@ -887,9 +1082,11 @@ function BookingStatusBadge({
 
   return (
     <div className="absolute left-4 top-4 rounded-full bg-white px-3 py-1.5 text-xs font-semibold capitalize text-[#16a765] shadow-sm">
-      {statusText[status] ||
-        status ||
-        "Booking"}
+      {isPendingPayment
+        ? "Payment Pending"
+        : statusText[status] ||
+          status ||
+          "Booking"}
     </div>
   );
 }
@@ -1114,3 +1311,4 @@ function BookingDetail({
     </div>
   );
 }
+

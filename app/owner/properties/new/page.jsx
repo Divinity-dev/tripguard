@@ -1321,8 +1321,7 @@ const removeUnavailableDateRange = (
   |--------------------------------------------------------------------------
   */
 
-  const TRIPGUARD_FEE_PERCENTAGE =
-    10;
+  const TRIPGUARD_FEE_PERCENTAGE = 5;
 
   const basePrice =
     Number(formData.price) || 0;
@@ -2667,7 +2666,7 @@ const removeUnavailableDateRange = (
               <p className="mt-1 text-sm leading-6 text-[#7A8581]">
                 {isEditMode
                   ? "Your updated property information will be saved to your TripGuard property."
-                  : "Your property will be reviewed by the TripGuard team before it becomes visible to travellers."}
+                  : "Your new property information will be saved to your TripGuard property."}
               </p>
 
             </div>

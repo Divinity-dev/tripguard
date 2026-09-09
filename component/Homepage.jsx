@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getStatesData } from "nigeria-state-lga-data";
+import BookStayModal from "./BookStayModal";
 import {
   MapPin,
   Search,
@@ -141,6 +142,12 @@ const HomePage = () => {
    */
 
   const [priceRange, setPriceRange] = useState("all");
+
+  const [isBookingModalOpen, setIsBookingModalOpen] =
+  useState(false);
+
+const [selectedAccommodation, setSelectedAccommodation] =
+  useState(null);
 
   /*
    * ------------------------------------------------------------
@@ -502,6 +509,16 @@ const HomePage = () => {
       : "/accommodations";
   };
 
+  const handleBookStay = (accommodation) => {
+  setSelectedAccommodation(accommodation);
+  setIsBookingModalOpen(true);
+};
+
+const handleCloseBookingModal = () => {
+  setIsBookingModalOpen(false);
+  setSelectedAccommodation(null);
+};
+
   /*
    * ------------------------------------------------------------
    * RENDER
@@ -638,10 +655,6 @@ const HomePage = () => {
                           }
                           className="h-10 w-full appearance-none rounded-lg border border-[#CDE7DD] bg-white px-3 pr-8 text-xs font-semibold text-[#277765] outline-none"
                         >
-                          <option value={5}>
-                            Within 5 km
-                          </option>
-
                           <option value={5}>
                             Within 5 km
                           </option>
@@ -1183,12 +1196,24 @@ const HomePage = () => {
 
                           </div>
 
-                          <Link
-                            href={href}
-                            className="rounded-xl bg-[#173C37] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#23584E]"
-                          >
-                            View stay
-                          </Link>
+                          <div className="flex items-center gap-2">
+  <Link
+    href={href}
+   className="rounded-xl bg-[#173C37] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#23584E]"
+  >
+    View stay
+  </Link>
+
+  <button
+    type="button"
+    onClick={() =>
+      handleBookStay(accommodation)
+    }
+    className="rounded-xl bg-[#173C37] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#23584E]"
+  >
+    Book stay
+  </button>
+</div>
 
                         </div>
 
@@ -1309,8 +1334,13 @@ const HomePage = () => {
         </div>
 
       </section>
-
+<BookStayModal
+  isOpen={isBookingModalOpen}
+  onClose={handleCloseBookingModal}
+  accommodation={selectedAccommodation}
+/>
     </main>
+    
   );
 };
 

@@ -1217,48 +1217,49 @@ const reviewCount =
 </section>
 
             {/* LOCATION */}
-            <section className="border-b border-[#E1E0D9] py-10">
+<section className="border-b border-[#E1E0D9] py-10">
 
-              <h2 className="text-2xl font-semibold">
-                Where you'll be
-              </h2>
+  <h2 className="text-2xl font-semibold">
+    Where you'll be
+  </h2>
 
-              <div className="mt-6 overflow-hidden rounded-[24px] border border-[#E2E1DA] bg-white">
+  <div className="mt-6 overflow-hidden rounded-[24px] border border-[#E2E1DA] bg-white">
 
-                <div className="flex h-[280px] items-center justify-center bg-[#E1E8E4]">
+    <div className="flex min-h-[280px] items-center justify-center bg-[#E1E8E4] px-6">
 
-                  <div className="text-center">
+      <div className="text-center">
 
-                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#173C37] text-white shadow-lg">
-                      <MapPin className="h-6 w-6" />
-                    </div>
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#173C37] text-white shadow-lg">
+          <MapPin className="h-6 w-6" />
+        </div>
 
-                    <p className="mt-4 font-semibold">
-                      {locationText || "Location unavailable"}
-                    </p>
+        <p className="mt-4 text-lg font-semibold text-[#173C37]">
+          {fullLocationText || "Location unavailable"}
+        </p>
 
-                    <p className="mt-1 text-sm text-[#75817D]">
-                      Exact address provided after booking
-                    </p>
+        <p className="mt-2 text-sm text-[#75817D]">
+          Exact location of this accommodation
+        </p>
 
-                  </div>
+      </div>
 
-                </div>
+    </div>
 
-                <div className="p-5">
+    <div className="p-5">
 
-                  <p className="text-sm leading-6 text-[#596661]">
-                    Located in{" "}
-                    {locationText || "a convenient location"}
-                    , with convenient access to restaurants,
-                    shops, entertainment and major roads.
-                  </p>
+      <p className="text-sm leading-6 text-[#596661]">
+        This accommodation is located at{" "}
+        <span className="font-semibold text-[#172322]">
+          {fullLocationText || "Location unavailable"}
+        </span>
+        .
+      </p>
 
-                </div>
+    </div>
 
-              </div>
+  </div>
 
-            </section>
+</section>
 
             {/* RULES */}
             <section className="py-10">
@@ -1521,11 +1522,12 @@ const reviewCount =
       )}
 
       {/* BOOKING MODAL */}
-      <BookStayModal
-        isOpen={bookModalOpen}
-        onClose={() => setBookModalOpen(false)}
-        onSubmit={handleBookSubmit}
-      />
+     <BookStayModal
+  isOpen={bookModalOpen}
+  onClose={() => setBookModalOpen(false)}
+  onSubmit={handleBookSubmit}
+  accommodation={accommodation}
+/>
 
     </main>
   );
