@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import PaymentSuccessModal from "@/components/PaymentSuccessModal";
+import PaymentSuccessModal from "../../../component/PaymentSuccessModal";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 

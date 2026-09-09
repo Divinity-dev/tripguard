@@ -138,7 +138,7 @@ const BookingDetailsPage = () => {
       const response = await fetch(
         `${apiUrl}/bookings/${bookingId}/check-in`,
         {
-          method: "POST",
+          method: "PUT",
           credentials: "include",
           headers: {
             "Content-Type":
@@ -243,6 +243,64 @@ const BookingDetailsPage = () => {
       setActionLoading(false);
     }
   };
+
+  const handleCancelBooking = async () => {
+  const confirmed = window.confirm(
+    "Are you sure you want to cancel this booking?"
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    setActionLoading(true);
+    setActionError("");
+    setActionMessage("");
+
+    const response = await fetch(
+      `${apiUrl}/bookings/${bookingId}/cancel`,
+      {
+        method: "PUT",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          reason: "Cancelled by traveller",
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        data.message ||
+          "Unable to cancel booking."
+      );
+    }
+
+    setBooking(data.booking);
+
+    setActionMessage(
+      data.message ||
+        "Booking cancelled successfully."
+    );
+  } catch (error) {
+    console.error(
+      "Cancel booking error:",
+      error
+    );
+
+    setActionError(
+      error.message ||
+        "Unable to cancel booking."
+    );
+  } finally {
+    setActionLoading(false);
+  }
+};
 
   const handleViewReceipt = () => {
   const receiptWindow = window.open(
@@ -545,7 +603,7 @@ const BookingDetailsPage = () => {
             </p>
 
             <Link
-              href="/dashboard/traveller/bookings"
+              href="/traveller/bookings"
               className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#16a765] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#128c55]"
             >
               <ArrowLeft size={17} />
@@ -841,18 +899,36 @@ const whatsappNumber =
                 Manage Booking
               </h2>
 
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                <button
-  type="button"
-  onClick={() => setShowContactModal(true)}
-  className="flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
->
-  <MessageCircle size={17} />
-  Contact Property
-</button>
+              {bookingStatus === "pending" &&
+  paymentStatus === "pending" && (
+    <>
+      <Link
+        href={`/payment?bookingId=${booking._id}`}
+        className="flex items-center justify-center gap-2 rounded-xl bg-[#16a765] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#128c55]"
+      >
+        <CreditCard size={17} />
+        Continue Payment
+      </Link>
 
-                
-              </div>
+      <button
+        type="button"
+        onClick={handleCancelBooking}
+        disabled={actionLoading}
+        className="flex items-center justify-center gap-2 rounded-xl border border-red-200 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {actionLoading ? (
+          <Loader2
+            size={17}
+            className="animate-spin"
+          />
+        ) : (
+          <XCircle size={17} />
+        )}
+
+        Cancel Booking
+      </button>
+    </>
+)}
             </div>
           </div>
 
