@@ -1,22 +1,28 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import PaymentSuccessModal from "../../../component/PaymentSuccessModal";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 const PaymentCallbackPage = () => {
-  const searchParams = useSearchParams();
   const router = useRouter();
 
-  const reference = searchParams.get("reference");
+  const [reference, setReference] = useState(null);
 
   const [status, setStatus] = useState("verifying");
   const [payment, setPayment] = useState(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setReference(params.get("reference"));
+  }, []);
+
+  useEffect(() => {
+    if (reference === null) return;
+
     if (!reference) {
       setStatus("error");
       setError("Payment reference was not provided.");
