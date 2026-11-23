@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Suspense } from "react";
 import {
   useEffect,
   useRef,
@@ -27,7 +28,7 @@ import PaymentSuccessModal from "../../component/PaymentSuccessModal";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-const PaymentPage = () => {
+const PaymentPageContent = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -1165,5 +1166,11 @@ const isResumingPayment =
   );
 };
 
-export default PaymentPage;
+export default function PaymentPage() {
+  return (
+    <Suspense fallback={<main className="flex min-h-screen items-center justify-center">Loading payment...</main>}>
+      <PaymentPageContent />
+    </Suspense>
+  );
+}
 
