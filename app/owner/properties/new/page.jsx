@@ -222,7 +222,7 @@ const ListPropertyPage = () => {
   /*
    * If edit exists, we are editing an accommodation.
    */
-  const editId = searchParams.get("id");
+
 
   const isEditMode = Boolean(editId);
   
