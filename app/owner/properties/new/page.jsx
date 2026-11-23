@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+
 
 import {
   ArrowLeft,
@@ -212,7 +212,12 @@ const initialFormData = {
 */
 
 const ListPropertyPage = () => {
-  const searchParams = useSearchParams();
+  const [editId, setEditId] = useState(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setEditId(params.get("id"));
+  }, []);
 
   /*
    * If edit exists, we are editing an accommodation.
