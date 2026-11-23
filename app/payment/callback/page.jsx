@@ -9,7 +9,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL;
 const PaymentCallbackPage = () => {
   const router = useRouter();
 
-  const [reference, setReference] = useState(null);
+  const [reference, setReference] = useState(undefined);
 
   const [status, setStatus] = useState("verifying");
   const [payment, setPayment] = useState(null);
@@ -21,7 +21,7 @@ const PaymentCallbackPage = () => {
   }, []);
 
   useEffect(() => {
-    if (reference === null) return;
+    if (reference === undefined) return;
 
     if (!reference) {
       setStatus("error");
